@@ -17,8 +17,7 @@ Sub subTestChi2GoodnessOfFit
 		oSheets.removeByName (sSheetName & "_chi2")
 	End If
 	oSheet = ThisComponent.getSheets.getByName (sSheetName)
-	'oRange = oSheet.getCellRangeByName ("A7:B192")
-	oRange = oSheet.getCellRangeByName ("A7:B167")
+	oRange = oSheet.getCellRangeByName ("A7:B192")
 	subReportChi2GoodnessOfFit (ThisComponent, oRange)
 End Sub
 
