@@ -224,6 +224,7 @@ Sub subReportChi2GoodnessOfFit (oDoc As Object, oDataRange As Object)
 	    sFormula = "=" & mCellNI (nI) & "/" & sCellN
 	    oCell.setFormula (sFormula)
 		oCell.setPropertyValue ("NumberFormat", nFormatPct)
+		mCellPI (nI) = fnGetLocalRangeName (oCell)
 	Next nI
 	' Shows the total
 	nRow = nRow + 2
@@ -239,7 +240,11 @@ Sub subReportChi2GoodnessOfFit (oDoc As Object, oDataRange As Object)
 	Next nJ
 	oCell = oSheet.getCellByPosition (1 + nGroups, nRow)
 	sCells = fnGetLocalRangeName (oSheet.getCellRangeByPosition (1, nRow, nGroups, nRow))
-	sFormula = "=" & sCellN & "/" & sCellN
+	sFormula = ""
+	For nI = 0 To nEvents - 1
+	    sFormula = sFormula & "+" & mCellPI (nI)
+	Next nI
+	sFormula = "=" & Right (sFormula, Len (sFormula) - 1)
 	oCell.setFormula (sFormula)
 	oCell.setPropertyValue ("NumberFormat", nFormatPct)
 	
