@@ -29,13 +29,13 @@ Sub subReportCorrelation (oDoc As Object, oDataRange As Object)
 	Dim oSheet As Object, oColumns As Object, nRow As Integer
 	Dim oCell As Object, oCells As Object, oCursor As Object
 	Dim nN As Integer, sFormula As String
+	Dim sNotes As String, nPos As Integer
 	Dim nFormatN As Integer, nFormatF As Integer, nFormatP As Integer
 	Dim aBorderSingle As New com.sun.star.table.BorderLine
 	Dim aBorderDouble As New com.sun.star.table.BorderLine
 	Dim sCellXLabel As String, sCellsXData As String
 	Dim sCellYLabel As String, sCellsYData As String
 	Dim sCellN As String, sCellR As String
-	Dim sNotes As String, nPos As Integer
 	
 	oSheets = oDoc.getSheets
 	sSheetName = oDataRange.getSpreadsheet.getName
@@ -168,7 +168,7 @@ Sub subReportCorrelation (oDoc As Object, oDataRange As Object)
 		oCursor.setPropertyValue ("CharPosture", com.sun.star.awt.FontSlant.ITALIC)
 		oCursor.setPropertyValue ("CharPostureAsian", com.sun.star.awt.FontSlant.ITALIC)
 		oCursor.setPropertyValue ("CharPostureComplex", com.sun.star.awt.FontSlant.ITALIC)
-	    nPos = InStr (nPos + 1, sNotes, "p<")
+		nPos = InStr (nPos + 1, sNotes, "p<")
 	Loop
 	nPos = InStr (sNotes, "(p)")
 	oCursor.gotoStart (False)
@@ -185,7 +185,7 @@ Sub subReportCorrelation (oDoc As Object, oDataRange As Object)
 		oCursor.setPropertyValue ("CharPosture", com.sun.star.awt.FontSlant.ITALIC)
 		oCursor.setPropertyValue ("CharPostureAsian", com.sun.star.awt.FontSlant.ITALIC)
 		oCursor.setPropertyValue ("CharPostureComplex", com.sun.star.awt.FontSlant.ITALIC)
-	    nPos = InStr (nPos + 1, sNotes, "ρ")
+		nPos = InStr (nPos + 1, sNotes, "ρ")
 	Loop
 	nPos = InStr (sNotes, "H0")
 	oCursor.gotoStart (False)

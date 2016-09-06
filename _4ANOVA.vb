@@ -32,6 +32,7 @@ Sub subReportANOVA (oDoc As Object, oDataRange As Object)
 	Dim oSheet As Object, oColumns As Object, nRow As Integer, nStartRow As Integer
 	Dim oCell As Object, oCells As Object, oCursor As Object, oTempDataRange As Object
 	Dim nN As Integer, sFormula As String
+	Dim sNotes As String, nPos As Integer
 	Dim nFormatN As Integer, nFormatF As Integer, nFormatP As Integer
 	Dim aBorderSingle As New com.sun.star.table.BorderLine
 	Dim aBorderDouble As New com.sun.star.table.BorderLine
@@ -45,7 +46,6 @@ Sub subReportANOVA (oDoc As Object, oDataRange As Object)
 	Dim sCellSSB As String, sCellSSW As String, sCellSST As String
 	Dim sCellMSB As String, sCellMSW As String
 	Dim sCellMeanDiff As String
-	Dim sNotes As String, nPos As Integer
 	
 	oSheets = oDoc.getSheets
 	sSheetName = oDataRange.getSpreadsheet.getName
@@ -341,7 +341,7 @@ Sub subReportANOVA (oDoc As Object, oDataRange As Object)
 		oCursor.setPropertyValue ("CharPostureAsian", com.sun.star.awt.FontSlant.ITALIC)
 		oCursor.setPropertyValue ("CharPostureComplex", com.sun.star.awt.FontSlant.ITALIC)
 		nPos = InStr (nPos + 1, sNotes, "p<")
-    Loop
+	Loop
 	nPos = InStr (sNotes, "(p)")
 	oCursor.gotoStart (False)
 	oCursor.goRight (nPos - 1, False)
@@ -565,7 +565,7 @@ Sub subReportANOVA (oDoc As Object, oDataRange As Object)
 		oCursor.setPropertyValue ("CharPostureAsian", com.sun.star.awt.FontSlant.ITALIC)
 		oCursor.setPropertyValue ("CharPostureComplex", com.sun.star.awt.FontSlant.ITALIC)
 		nPos = InStr (nPos + 1, sNotes, "p<")
-    Loop
+	Loop
 	nPos = InStr (sNotes, "(p)")
 	oCursor.gotoStart (False)
 	oCursor.goRight (nPos, False)
@@ -586,7 +586,7 @@ Sub subReportANOVA (oDoc As Object, oDataRange As Object)
 		oCursor.setPropertyValue ("CharEscapement", -33)
 		oCursor.setPropertyValue ("CharEscapementHeight", 58)
 		nPos = InStr (nPos + 1, sNotes, "μ")
-    Loop
+	Loop
 	nPos = InStr (sNotes, "μN")
 	oCursor.gotoStart (False)
 	oCursor.goRight (nPos, False)
