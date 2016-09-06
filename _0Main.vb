@@ -12,6 +12,7 @@ Sub subMain
 	'MsgBox InStr (1, "abca", "ad")
 	'Xray ThisComponent.getSheets.getByIndex (0).getCellByPosition (0, 0)
 	'subTestCorrelation
+	subTestChi2GoodnessOfFit
 	
 	MsgBox "Done.  " & Format (Now - dStart, "mm:ss") & " elapsed."
 End Sub
@@ -53,4 +54,21 @@ Function fnGetLocalRangeName (oRange As Object) As String
 		sName = Right (sName, Len (sName) - nPos)
 	End If
 	fnGetLocalRangeName = sName
+End Function
+
+' fnFindStatsTestDocument: Finds the statistics test document.
+Function fnFindStatsTestDocument As Object
+	Dim oEnum As Object, oDoc As Object
+	
+	oEnum = StarDesktop.getComponents.createEnumeration
+	Do While oEnum.hasMoreElements
+		oDoc = oEnum.nextElement
+		If oDoc.supportsService ("com.sun.star.document.OfficeDocument") Then
+			If Right (oDoc.getLocation, Len ("/statstest.ods")) = "/statstest.ods" Then
+				fnFindStatsTestDocument = oDoc
+				Exit Function
+			End If
+		End If
+	Loop
+	fnFindStatsTestDocument = Null
 End Function

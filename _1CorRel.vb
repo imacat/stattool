@@ -5,11 +5,17 @@ Option Explicit
 
 ' subTestCorrelation: Tests the Pearson’s correlation coefficient report
 Sub subTestCorrelation
-	Dim oSheets As Object, sSheetName As String
+	Dim oDoc As Object, oSheets As Object, sSheetName As String
 	Dim oSheet As Object, oRange As Object
 	
+	oDoc = fnFindStatsTestDocument
+	If oDoc = Null Then
+		MsgBox "Cannot find statstest.ods in the opened documents."
+		Exit Sub
+	End If
+	
 	sSheetName = "correl"
-	oSheets = ThisComponent.getSheets
+	oSheets = oDoc.getSheets
 	If Not oSheets.hasByName (sSheetName) Then
 		MsgBox "Data sheet """ & sSheetName & """ not found"
 		Exit Sub
@@ -17,9 +23,9 @@ Sub subTestCorrelation
 	If oSheets.hasByName (sSheetName & "_correl") Then
 		oSheets.removeByName (sSheetName & "_correl")
 	End If
-	oSheet = ThisComponent.getSheets.getByName (sSheetName)
+	oSheet = oSheets.getByName (sSheetName)
 	oRange = oSheet.getCellRangeByName ("B3:C13")
-	subReportCorrelation (ThisComponent, oRange)
+	subReportCorrelation (oDoc, oRange)
 End Sub
 
 ' subReportCorrelation: Reports the Pearson’s correlation coefficient

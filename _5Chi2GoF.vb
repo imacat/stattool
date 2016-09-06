@@ -4,11 +4,17 @@ Option Explicit
 
 ' subTestChi2GoodnessOfFit: Tests the chi-square goodness of fit report
 Sub subTestChi2GoodnessOfFit
-	Dim oSheets As Object, sSheetName As String
+	Dim oDoc As Object, oSheets As Object, sSheetName As String
 	Dim oSheet As Object, oRange As Object
 	
+	oDoc = fnFindStatsTestDocument
+	If oDoc = Null Then
+		MsgBox "Cannot find statstest.ods in the opened documents."
+		Exit Sub
+	End If
+	
 	sSheetName = "chi2"
-	oSheets = ThisComponent.getSheets
+	oSheets = oDoc.getSheets
 	If Not oSheets.hasByName (sSheetName) Then
 		MsgBox "Data sheet """ & sSheetName & """ not found"
 		Exit Sub
@@ -16,9 +22,9 @@ Sub subTestChi2GoodnessOfFit
 	If oSheets.hasByName (sSheetName & "_chi2") Then
 		oSheets.removeByName (sSheetName & "_chi2")
 	End If
-	oSheet = ThisComponent.getSheets.getByName (sSheetName)
+	oSheet = oSheets.getByName (sSheetName)
 	oRange = oSheet.getCellRangeByName ("A7:B192")
-	subReportChi2GoodnessOfFit (ThisComponent, oRange)
+	subReportChi2GoodnessOfFit (oDoc, oRange)
 End Sub
 
 ' subReportChi2GoodnessOfFit: Reports the chi-square goodness of fit

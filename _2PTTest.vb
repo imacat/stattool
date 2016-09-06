@@ -4,11 +4,17 @@ Option Explicit
 
 ' subTestPairedTTest: Tests the paired T-test report
 Sub subTestPairedTTest
-	Dim oSheets As Object, sSheetName As String
+	Dim oDoc As Object, oSheets As Object, sSheetName As String
 	Dim oSheet As Object, oRange As Object
 	
+	oDoc = fnFindStatsTestDocument
+	If oDoc = Null Then
+		MsgBox "Cannot find statstest.ods in the opened documents."
+		Exit Sub
+	End If
+	
 	sSheetName = "pttest"
-	oSheets = ThisComponent.getSheets
+	oSheets = oDoc.getSheets
 	If Not oSheets.hasByName (sSheetName) Then
 		MsgBox "Data sheet """ & sSheetName & """ not found"
 		Exit Sub
@@ -16,9 +22,9 @@ Sub subTestPairedTTest
 	If oSheets.hasByName (sSheetName & "_ttest") Then
 		oSheets.removeByName (sSheetName & "_ttest")
 	End If
-	oSheet = ThisComponent.getSheets.getByName (sSheetName)
+	oSheet = oSheets.getByName (sSheetName)
 	oRange = oSheet.getCellRangeByName ("B3:C15")
-	subReportPairedTTest (ThisComponent, oRange)
+	subReportPairedTTest (oDoc, oRange)
 End Sub
 
 ' subReportPairedTTest: Reports the paired T-test
