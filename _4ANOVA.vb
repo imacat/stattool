@@ -1,14 +1,175 @@
 ' _4ANOVA: The macros to for generating the report of ANOVA (Analyze of Variances)
 '   by imacat <imacat@mail.imacat.idv.tw>, 2016-08-31
+
 Option Explicit
+
+' subRunANOVA: Runs the ANOVA (Analyze of Variances).
+Sub subRunANOVA As Object
+	Dim oRange As Object
+	Dim mLabels () As String, nI As Integer, mSelected (0) As Integer
+	Dim oDialogModel As Object, oDialog As Object, nResult As Integer
+	Dim oTextModel As Object, oListModel1 As Object, oListModel2 As Object
+	Dim oButtonModel As Object
+	Dim nColumn As Integer, oRange1 As Object, oRange2 As Object
+	Dim oSheets As Object, sSheetName As String, sExisted As String
+	Dim oSheet As Object
+	
+	' Asks the user for the data range
+	oRange = fnAskDataRange (ThisComponent)
+	If IsNull (oRange) Then
+		Exit Sub
+	End If
+	ReDim mLabels (oRange.getColumns.getCount - 1) As String
+	For nI = 0 To oRange.getColumns.getCount - 1
+		mLabels (nI) = oRange.getCellByPosition (nI, 0).getString
+	Next nI
+	
+	' Creates a dialog
+	oDialogModel = CreateUnoService ( _
+		"com.sun.star.awt.UnoControlDialogModel")
+	oDialogModel.setPropertyValue ("PositionX", 200)
+	oDialogModel.setPropertyValue ("PositionY", 200)
+	oDialogModel.setPropertyValue ("Height", 80)
+	oDialogModel.setPropertyValue ("Width", 95)
+	oDialogModel.setPropertyValue ("Title", "Step 2/2: Specify the data")
+	
+	' Adds the prompt.
+	oTextModel = oDialogModel.createInstance ( _
+		"com.sun.star.awt.UnoControlFixedTextModel")
+	oTextModel.setPropertyValue ("PositionX", 5)
+	oTextModel.setPropertyValue ("PositionY", 5)
+	oTextModel.setPropertyValue ("Height", 10)
+	oTextModel.setPropertyValue ("Width", 85)
+	oTextModel.setPropertyValue ("Label", "Group column:")
+	oTextModel.setPropertyValue ("MultiLine", True)
+	oTextModel.setPropertyValue ("TabIndex", 1)
+	oDialogModel.insertByName ("txtPromptGroup", oTextModel)
+	
+	' Adds the drop down list
+	oListModel1 = oDialogModel.createInstance ( _
+		"com.sun.star.awt.UnoControlListBoxModel")
+	oListModel1.setPropertyValue ("PositionX", 5)
+	oListModel1.setPropertyValue ("PositionY", 15)
+	oListModel1.setPropertyValue ("Height", 10)
+	oListModel1.setPropertyValue ("Width", 85)
+	oListModel1.setPropertyValue ("Dropdown", True)
+	oListModel1.setPropertyValue ("StringItemList", mLabels)
+	mSelected (0) = 0
+	oListModel1.setPropertyValue ("SelectedItems", mSelected)
+	oDialogModel.insertByName ("lstGroup", oListModel1)
+	
+	' Adds the prompt.
+	oTextModel = oDialogModel.createInstance ( _
+		"com.sun.star.awt.UnoControlFixedTextModel")
+	oTextModel.setPropertyValue ("PositionX", 5)
+	oTextModel.setPropertyValue ("PositionY", 30)
+	oTextModel.setPropertyValue ("Height", 10)
+	oTextModel.setPropertyValue ("Width", 85)
+	oTextModel.setPropertyValue ("Label", "Score column:")
+	oTextModel.setPropertyValue ("MultiLine", True)
+	oTextModel.setPropertyValue ("TabIndex", 1)
+	oDialogModel.insertByName ("txtPromptScore", oTextModel)
+	
+	' Adds the drop down list
+	oListModel2 = oDialogModel.createInstance ( _
+		"com.sun.star.awt.UnoControlListBoxModel")
+	oListModel2.setPropertyValue ("PositionX", 5)
+	oListModel2.setPropertyValue ("PositionY", 40)
+	oListModel2.setPropertyValue ("Height", 10)
+	oListModel2.setPropertyValue ("Width", 85)
+	oListModel2.setPropertyValue ("Dropdown", True)
+	oListModel2.setPropertyValue ("StringItemList", mLabels)
+	mSelected (0) = 1
+	oListModel2.setPropertyValue ("SelectedItems", mSelected)
+	oDialogModel.insertByName ("lstScore", oListModel2)
+	
+	' Adds the buttons.
+	oButtonModel = oDialogModel.createInstance ( _
+		"com.sun.star.awt.UnoControlButtonModel")
+	oButtonModel.setPropertyValue ("PositionX", 5)
+	oButtonModel.setPropertyValue ("PositionY", 60)
+	oButtonModel.setPropertyValue ("Height", 15)
+	oButtonModel.setPropertyValue ("Width", 40)
+	oButtonModel.setPropertyValue ("PushButtonType", _
+		com.sun.star.awt.PushButtonType.CANCEL)
+	oDialogModel.insertByName ("btnClose", oButtonModel)
+	
+	oButtonModel = oDialogModel.createInstance ( _
+		"com.sun.star.awt.UnoControlButtonModel")
+	oButtonModel.setPropertyValue ("PositionX", 50)
+	oButtonModel.setPropertyValue ("PositionY", 60)
+	oButtonModel.setPropertyValue ("Height", 15)
+	oButtonModel.setPropertyValue ("Width", 40)
+	oButtonModel.setPropertyValue ("PushButtonType", _
+		com.sun.star.awt.PushButtonType.OK)
+	oButtonModel.setPropertyValue ("DefaultButton", True)
+	oDialogModel.insertByName ("btnOK", oButtonModel)
+	
+	' Adds the dialog model to the control and runs it.
+	oDialog = CreateUnoService ("com.sun.star.awt.UnoControlDialog")
+	oDialog.setModel (oDialogModel)
+	oDialog.setVisible (True)
+	nResult = oDialog.execute
+	oDialog.dispose
+	
+	' Cancelled
+	If nResult = 0 Then
+		Exit Sub
+	End If
+	
+	nColumn = oListModel1.getPropertyValue ("SelectedItems") (0)
+	oRange1 = oRange.getCellRangeByPosition ( _
+		nColumn, 0, nColumn, oRange.getRows.getCount - 1)
+	nColumn = oListModel2.getPropertyValue ("SelectedItems") (0)
+	oRange2 = oRange.getCellRangeByPosition ( _
+		nColumn, 0, nColumn, oRange.getRows.getCount - 1)
+	
+	' Checks the existing report
+	oSheets = ThisComponent.getSheets
+	sSheetName = oRange1.getSpreadsheet.getName
+	sExisted = ""
+	If oSheets.hasByName (sSheetName & "_anova") Then
+		sExisted = sExisted & ", """ & sSheetName & "_anova"""
+	End If
+	If oSheets.hasByName (sSheetName & "_anovatmp") Then
+		sExisted = sExisted & ", """ & sSheetName & "_anovatmp"""
+	End If
+	If sExisted <> "" Then
+		sExisted = Right (sExisted, Len (sExisted) - 2)
+		If InStr (sExisted, ",") > 0 Then
+			sExisted = "Spreadsheets " & sExisted & " exist.  Overwrite?"
+		Else
+			sExisted = "Spreadsheet " & sExisted & " exists.  Overwrite?"
+		End If
+		nResult = MsgBox(sExisted, MB_YESNO + MB_DEFBUTTON2 + MB_ICONQUESTION)
+		If nResult = IDNO Then
+			Exit Sub
+		End If
+		
+		' Drops the existing report
+		If oSheets.hasByName (sSheetName & "_anova") Then
+			oSheets.removeByname (sSheetName & "_anova")
+		End If
+		If oSheets.hasByName (sSheetName & "_anovatmp") Then
+			oSheets.removeByname (sSheetName & "_anovatmp")
+		End If
+	End If
+	
+	' Reports the ANOVA (Analyze of Variances)
+	subReportANOVA (ThisComponent, oRange1, oRange2)
+	
+	' Makes the report sheet active.
+	oSheet = oSheets.getByName (sSheetName & "_anova")
+	ThisComponent.getCurrentController.setActiveSheet (oSheet)
+End Sub
 
 ' subTestANOVA: Tests the ANOVA (Analyze of Variances) report
 Sub subTestANOVA
 	Dim oDoc As Object, oSheets As Object, sSheetName As String
-	Dim oSheet As Object, oRange As Object
+	Dim oSheet As Object, oLabelColumn As Object, oScoreColumn As Object
 	
 	oDoc = fnFindStatsTestDocument
-	If oDoc = Null Then
+	If IsNull (oDoc) Then
 		MsgBox "Cannot find statstest.ods in the opened documents."
 		Exit Sub
 	End If
@@ -26,12 +187,13 @@ Sub subTestANOVA
 		oSheets.removeByName (sSheetName & "_anovatmp")
 	End If
 	oSheet = oSheets.getByName (sSheetName)
-	oRange = oSheet.getCellRangeByName ("A13:B35")
-	subReportANOVA (oDoc, oRange)
+	oLabelColumn = oSheet.getCellRangeByName ("A13:A35")
+	oScoreColumn = oSheet.getCellRangeByName ("B13:B35")
+	subReportANOVA (oDoc, oLabelColumn, oScoreColumn)
 End Sub
 
 ' subReportANOVA: Reports the ANOVA (Analyze of Variances)
-Sub subReportANOVA (oDoc As Object, oDataRange As Object)
+Sub subReportANOVA (oDoc As Object, oLabelColumn As Object, oScoreColumn As Object)
 	Dim oSheets As Object, sSheetName As String
 	Dim nI As Integer, nJ As Integer
 	Dim mNames () As String, nSheetIndex As Integer
@@ -54,7 +216,7 @@ Sub subReportANOVA (oDoc As Object, oDataRange As Object)
 	Dim sCellMeanDiff As String
 	
 	oSheets = oDoc.getSheets
-	sSheetName = oDataRange.getSpreadsheet.getName
+	sSheetName = oLabelColumn.getSpreadsheet.getName
 	mNames = oSheets.getElementNames
 	For nI = 0 To UBound (mNames)
 		If mNames (nI) = sSheetName Then
@@ -64,7 +226,7 @@ Sub subReportANOVA (oDoc As Object, oDataRange As Object)
 	
 	oSheets.insertNewByName (sSheetName & "_anovatmp", nSheetIndex + 1)
 	oSheet = oSheets.getByName (sSheetName & "_anovatmp")
-	oTempDataRange = fnCollectANOVAData (oDataRange, oSheet)
+	oTempDataRange = fnCollectANOVAData (oSheet, oLabelColumn, oScoreColumn)
 	nGroups = oTempDataRange.getColumns.getCount / 3
 	
 	oSheets.insertNewByName (sSheetName & "_anova", nSheetIndex + 1)
@@ -852,7 +1014,7 @@ Sub subReportANOVA (oDoc As Object, oDataRange As Object)
 End Sub
 
 ' fnCollectANOVAData: Collects the data for the ANOVA (Analyze of Variances).
-Function fnCollectANOVAData (oDataRange As Object, oReportSheet As Object) As Object
+Function fnCollectANOVAData (oReportSheet As Object, oLabelColumn As Object, oScoreColumn As Object) As Object
 	Dim nRow As Integer, nColumn As Integer, nI As Integer
 	Dim nNRow As Integer, sCellZMean As String, sCellsN As String
 	Dim oCell As Object, oCells As Object, oCursor As Object
@@ -865,8 +1027,8 @@ Function fnCollectANOVAData (oDataRange As Object, oReportSheet As Object) As Ob
 	
 	sLabels = " "
 	nGroups = 0
-	For nRow = 1 To oDataRange.getRows.getCount - 1
-		sLabel = oDataRange.getCellByPosition (0, nRow).getString
+	For nRow = 1 To oLabelColumn.getRows.getCount - 1
+		sLabel = oLabelColumn.getCellByPosition (0, nRow).getString
 		If InStr (sLabels, " " & sLabel & " ") = 0 Then
 			sLabels = sLabels & sLabel & " "
 			nGroups = nGroups + 1
@@ -880,8 +1042,8 @@ Function fnCollectANOVAData (oDataRange As Object, oReportSheet As Object) As Ob
 	
 	sLabels = " "
 	nGroups = 0
-	For nRow = 1 To oDataRange.getRows.getCount - 1
-		oCell = oDataRange.getCellByPosition (0, nRow)
+	For nRow = 1 To oLabelColumn.getRows.getCount - 1
+		oCell = oLabelColumn.getCellByPosition (0, nRow)
 		sLabel = oCell.getString
 		If InStr (sLabels, " " & sLabel & " ") = 0 Then
 			sLabels = sLabels & sLabel & " "
@@ -902,8 +1064,8 @@ Function fnCollectANOVAData (oDataRange As Object, oReportSheet As Object) As Ob
 	For nI = 0 To nGroups - 1
 		mN (nI) = 0
 	Next nI
-	For nRow = 1 To oDataRange.getRows.getCount - 1
-		sLabel = oDataRange.getCellByPosition (0, nRow).getString
+	For nRow = 1 To oLabelColumn.getRows.getCount - 1
+		sLabel = oLabelColumn.getCellByPosition (0, nRow).getString
 		For nI = 0 To nGroups - 1
 			If sLabel = mLabels (nI) Then
 				nColumn = nI
@@ -911,7 +1073,7 @@ Function fnCollectANOVAData (oDataRange As Object, oReportSheet As Object) As Ob
 			End If
 		Next nI
 		mN (nColumn) = mN (nColumn) + 1
-		sFormula = "=" & fnGetRangeName (oDataRange.getCellByPosition (1, nRow))
+		sFormula = "=" & fnGetRangeName (oScoreColumn.getCellByPosition (0, nRow))
 		oCell = oReportSheet.getCellByPosition (nColumn, mN (nColumn))
 		oCell.setFormula (sFormula)
 	Next nRow
