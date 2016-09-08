@@ -80,23 +80,6 @@ Function fnGetLocalRangeName (oRange As Object) As String
 	fnGetLocalRangeName = sName
 End Function
 
-' fnFindStatsTestDocument: Finds the statistics test document.
-Function fnFindStatsTestDocument As Object
-	Dim oEnum As Object, oDoc As Object, sFile As String
-	
-	sFile = "/statstest.ods"
-	oEnum = StarDesktop.getComponents.createEnumeration
-	Do While oEnum.hasMoreElements
-		oDoc = oEnum.nextElement
-		If oDoc.supportsService ("com.sun.star.document.OfficeDocument") Then
-			If Right (oDoc.getLocation, Len (sFile)) = sFile Then
-				fnFindStatsTestDocument = oDoc
-				Exit Function
-			End If
-		End If
-	Loop
-End Function
-
 ' fnSpecifyData: Specifies the data
 Function fnSpecifyData (oRange As Object, sPrompt1 As String, sPrompt2 As String) As Object
 	Dim mLabels (oRange.getColumns.getCount - 1) As String

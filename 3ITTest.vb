@@ -78,35 +78,6 @@ Sub subRunIndependentTTest As Object
 	ThisComponent.getCurrentController.setActiveSheet (oSheet)
 End Sub
 
-' subTestIndependentTTest: Tests the independent T-test report.
-Sub subTestIndependentTTest
-	Dim oDoc As Object, oSheets As Object, sSheetName As String
-	Dim oSheet As Object, oLabelColumn As Object, oScoreColumn As Object
-	
-	oDoc = fnFindStatsTestDocument
-	If IsNull (oDoc) Then
-		MsgBox "Cannot find statstest.ods in the opened documents."
-		Exit Sub
-	End If
-	
-	sSheetName = "ittest"
-	oSheets = oDoc.getSheets
-	If Not oSheets.hasByName (sSheetName) Then
-		MsgBox "Data sheet """ & sSheetName & """ not found"
-		Exit Sub
-	End If
-	If oSheets.hasByName (sSheetName & "_ttest") Then
-		oSheets.removeByName (sSheetName & "_ttest")
-	End If
-	If oSheets.hasByName (sSheetName & "_ttesttmp") Then
-		oSheets.removeByName (sSheetName & "_ttesttmp")
-	End If
-	oSheet = oSheets.getByName (sSheetName)
-	oLabelColumn = oSheet.getCellRangeByName ("A15:A34")
-	oScoreColumn = oSheet.getCellRangeByName ("B15:B34")
-	subReportIndependentTTest (oDoc, oLabelColumn, oScoreColumn)
-End Sub
-
 ' subReportIndependentTTest: Reports the independent T-test
 Sub subReportIndependentTTest (oDoc As Object, oLabelColumn As Object, oScoreColumn As Object)
 	Dim oSheets As Object, sSheetName As String

@@ -78,35 +78,6 @@ Sub subRunANOVA As Object
 	ThisComponent.getCurrentController.setActiveSheet (oSheet)
 End Sub
 
-' subTestANOVA: Tests the ANOVA (Analyze of Variances) report
-Sub subTestANOVA
-	Dim oDoc As Object, oSheets As Object, sSheetName As String
-	Dim oSheet As Object, oLabelColumn As Object, oScoreColumn As Object
-	
-	oDoc = fnFindStatsTestDocument
-	If IsNull (oDoc) Then
-		MsgBox "Cannot find statstest.ods in the opened documents."
-		Exit Sub
-	End If
-	
-	sSheetName = "anova"
-	oSheets = oDoc.getSheets
-	If Not oSheets.hasByName (sSheetName) Then
-		MsgBox "Data sheet """ & sSheetName & """ not found"
-		Exit Sub
-	End If
-	If oSheets.hasByName (sSheetName & "_anova") Then
-		oSheets.removeByName (sSheetName & "_anova")
-	End If
-	If oSheets.hasByName (sSheetName & "_anovatmp") Then
-		oSheets.removeByName (sSheetName & "_anovatmp")
-	End If
-	oSheet = oSheets.getByName (sSheetName)
-	oLabelColumn = oSheet.getCellRangeByName ("A13:A35")
-	oScoreColumn = oSheet.getCellRangeByName ("B13:B35")
-	subReportANOVA (oDoc, oLabelColumn, oScoreColumn)
-End Sub
-
 ' subReportANOVA: Reports the ANOVA (Analyze of Variances)
 Sub subReportANOVA (oDoc As Object, oLabelColumn As Object, oScoreColumn As Object)
 	Dim oSheets As Object, sSheetName As String
