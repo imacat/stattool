@@ -1,4 +1,4 @@
-' _3ITTest: The macros to for generating the report of independent T-Test
+' 3ITTest: The macros to for generating the report of independent T-Test
 '   by imacat <imacat@mail.imacat.idv.tw>, 2016-08-24
 
 Option Explicit
@@ -6,127 +6,27 @@ Option Explicit
 ' subRunIndependentTTest: Runs the independent T-test.
 Sub subRunIndependentTTest As Object
 	Dim oRange As Object
-	Dim mLabels () As String, nI As Integer, mSelected (0) As Integer
-	Dim oDialogModel As Object, oDialog As Object, nResult As Integer
-	Dim oTextModel As Object, oListModel1 As Object, oListModel2 As Object
-	Dim oButtonModel As Object
-	Dim nColumn As Integer, oRange1 As Object, oRange2 As Object
-	Dim oSheets As Object, sSheetName As String, sExisted As String
-	Dim oSheet As Object
+	Dim oSheets As Object, sSheetName As String
+	Dim oSheet As Object, mRanges As Object
+	Dim sExisted As String, nResult As Integer
 	
 	' Asks the user for the data range
 	oRange = fnAskDataRange (ThisComponent)
 	If IsNull (oRange) Then
 		Exit Sub
 	End If
-	ReDim mLabels (oRange.getColumns.getCount - 1) As String
-	For nI = 0 To oRange.getColumns.getCount - 1
-		mLabels (nI) = oRange.getCellByPosition (nI, 0).getString
-	Next nI
 	
-	' Creates a dialog
-	oDialogModel = CreateUnoService ( _
-		"com.sun.star.awt.UnoControlDialogModel")
-	oDialogModel.setPropertyValue ("PositionX", 200)
-	oDialogModel.setPropertyValue ("PositionY", 200)
-	oDialogModel.setPropertyValue ("Height", 80)
-	oDialogModel.setPropertyValue ("Width", 95)
-	oDialogModel.setPropertyValue ("Title", "Step 2/2: Specify the data")
-	
-	' Adds the prompt.
-	oTextModel = oDialogModel.createInstance ( _
-		"com.sun.star.awt.UnoControlFixedTextModel")
-	oTextModel.setPropertyValue ("PositionX", 5)
-	oTextModel.setPropertyValue ("PositionY", 5)
-	oTextModel.setPropertyValue ("Height", 10)
-	oTextModel.setPropertyValue ("Width", 85)
-	oTextModel.setPropertyValue ("Label", "Group column:")
-	oTextModel.setPropertyValue ("MultiLine", True)
-	oTextModel.setPropertyValue ("TabIndex", 1)
-	oDialogModel.insertByName ("txtPromptGroup", oTextModel)
-	
-	' Adds the drop down list
-	oListModel1 = oDialogModel.createInstance ( _
-		"com.sun.star.awt.UnoControlListBoxModel")
-	oListModel1.setPropertyValue ("PositionX", 5)
-	oListModel1.setPropertyValue ("PositionY", 15)
-	oListModel1.setPropertyValue ("Height", 10)
-	oListModel1.setPropertyValue ("Width", 85)
-	oListModel1.setPropertyValue ("Dropdown", True)
-	oListModel1.setPropertyValue ("StringItemList", mLabels)
-	mSelected (0) = 0
-	oListModel1.setPropertyValue ("SelectedItems", mSelected)
-	oDialogModel.insertByName ("lstGroup", oListModel1)
-	
-	' Adds the prompt.
-	oTextModel = oDialogModel.createInstance ( _
-		"com.sun.star.awt.UnoControlFixedTextModel")
-	oTextModel.setPropertyValue ("PositionX", 5)
-	oTextModel.setPropertyValue ("PositionY", 30)
-	oTextModel.setPropertyValue ("Height", 10)
-	oTextModel.setPropertyValue ("Width", 85)
-	oTextModel.setPropertyValue ("Label", "Score column:")
-	oTextModel.setPropertyValue ("MultiLine", True)
-	oTextModel.setPropertyValue ("TabIndex", 1)
-	oDialogModel.insertByName ("txtPromptScore", oTextModel)
-	
-	' Adds the drop down list
-	oListModel2 = oDialogModel.createInstance ( _
-		"com.sun.star.awt.UnoControlListBoxModel")
-	oListModel2.setPropertyValue ("PositionX", 5)
-	oListModel2.setPropertyValue ("PositionY", 40)
-	oListModel2.setPropertyValue ("Height", 10)
-	oListModel2.setPropertyValue ("Width", 85)
-	oListModel2.setPropertyValue ("Dropdown", True)
-	oListModel2.setPropertyValue ("StringItemList", mLabels)
-	mSelected (0) = 1
-	oListModel2.setPropertyValue ("SelectedItems", mSelected)
-	oDialogModel.insertByName ("lstScore", oListModel2)
-	
-	' Adds the buttons.
-	oButtonModel = oDialogModel.createInstance ( _
-		"com.sun.star.awt.UnoControlButtonModel")
-	oButtonModel.setPropertyValue ("PositionX", 5)
-	oButtonModel.setPropertyValue ("PositionY", 60)
-	oButtonModel.setPropertyValue ("Height", 15)
-	oButtonModel.setPropertyValue ("Width", 40)
-	oButtonModel.setPropertyValue ("PushButtonType", _
-		com.sun.star.awt.PushButtonType.CANCEL)
-	oDialogModel.insertByName ("btnClose", oButtonModel)
-	
-	oButtonModel = oDialogModel.createInstance ( _
-		"com.sun.star.awt.UnoControlButtonModel")
-	oButtonModel.setPropertyValue ("PositionX", 50)
-	oButtonModel.setPropertyValue ("PositionY", 60)
-	oButtonModel.setPropertyValue ("Height", 15)
-	oButtonModel.setPropertyValue ("Width", 40)
-	oButtonModel.setPropertyValue ("PushButtonType", _
-		com.sun.star.awt.PushButtonType.OK)
-	oButtonModel.setPropertyValue ("DefaultButton", True)
-	oDialogModel.insertByName ("btnOK", oButtonModel)
-	
-	' Adds the dialog model to the control and runs it.
-	oDialog = CreateUnoService ("com.sun.star.awt.UnoControlDialog")
-	oDialog.setModel (oDialogModel)
-	oDialog.setVisible (True)
-	nResult = oDialog.execute
-	oDialog.dispose
-	
-	' Cancelled
-	If nResult = 0 Then
+	' Specifies the data
+	mRanges = fnSpecifyData (oRange, _
+		"&10.Dlg2SpecData.txtPrompt1.Label3ITTest", _
+		"&11.Dlg2SpecData.txtPrompt2.Label3ITTest")
+	If IsNull (mRanges) Then
 		Exit Sub
 	End If
 	
-	nColumn = oListModel1.getPropertyValue ("SelectedItems") (0)
-	oRange1 = oRange.getCellRangeByPosition ( _
-		nColumn, 0, nColumn, oRange.getRows.getCount - 1)
-	nColumn = oListModel2.getPropertyValue ("SelectedItems") (0)
-	oRange2 = oRange.getCellRangeByPosition ( _
-		nColumn, 0, nColumn, oRange.getRows.getCount - 1)
-	
 	' Checks the existing report
 	oSheets = ThisComponent.getSheets
-	sSheetName = oRange1.getSpreadsheet.getName
+	sSheetName = oRange.getSpreadsheet.getName
 	sExisted = ""
 	If oSheets.hasByName (sSheetName & "_ttest") Then
 		sExisted = sExisted & ", """ & sSheetName & "_ttest"""
@@ -145,7 +45,6 @@ Sub subRunIndependentTTest As Object
 		If nResult = IDNO Then
 			Exit Sub
 		End If
-		
 		' Drops the existing report
 		If oSheets.hasByName (sSheetName & "_ttest") Then
 			oSheets.removeByname (sSheetName & "_ttest")
@@ -156,7 +55,7 @@ Sub subRunIndependentTTest As Object
 	End If
 	
 	' Reports the independent T-test.
-	subReportIndependentTTest (ThisComponent, oRange1, oRange2)
+	subReportIndependentTTest (ThisComponent, mRanges (0), mRanges (1))
 	
 	' Makes the report sheet active.
 	oSheet = oSheets.getByName (sSheetName & "_ttest")

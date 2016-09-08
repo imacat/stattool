@@ -1,23 +1,12 @@
-' _0Main: The main module for the statistics macros
+' 9Tools: The tool macros
 '   by imacat <imacat@mail.imacat.idv.tw>, 2016-08-10
 
 Option Explicit
 
-' subMain: The main program
-Sub subMain
+Sub subTest
 	BasicLibraries.loadLibrary "XrayTool"
 	
-	subRunCorrelation
-	'subRunPairedTTest
-	'subRunIndependentTTest
-	'subRunAnova
-	'subRunChi2GoodnessOfFit
-	'subTestCorrelation
-	'subTestPairedTTest
-	'subTestIndependentTTest
-	'subTestANOVA
-	'subTestChi2GoodnessOfFit
-	
+	MsgBox fnFormatString ("abc % def", Array ("ghi"))
 End Sub
 
 ' fnCheckRangeName: Checks the range name and returns the range when
@@ -100,51 +89,56 @@ Function fnFindStatsTestDocument As Object
 	Loop
 End Function
 
+' fnSpecifyData: Specifies the data
+Function fnSpecifyData (oRange As Object, sPrompt1 As String, sPrompt2 As String) As Object
+	Dim mLabels (oRange.getColumns.getCount - 1) As String
+	Dim nI As Integer, mSelected (0) As Integer
+	Dim oDialog As Object, oTextModel As Object
+	Dim oListModel1 As object, oListModel2 As Object
+	Dim nResult As Integer, nColumn As Integer, mRanges (1) As Object
+	
+	For nI = 0 To oRange.getColumns.getCount - 1
+		mLabels (nI) = oRange.getCellByPosition (nI, 0).getString
+	Next nI
+	
+	' Runs the dialog
+	oDialog = CreateUnoDialog (DialogLibraries.Stats.Dlg2SpecData)
+	oTextModel = oDialog.getControl ("txtPrompt1").getModel
+	oTextModel.setPropertyValue ("Label", sPrompt1)
+	oListModel1 = oDialog.getControl ("lstData1").getModel
+	oListModel1.setPropertyValue ("StringItemList", mLabels)
+	mSelected (0) = 0
+	oListModel1.setPropertyValue ("SelectedItems", mSelected)
+	oTextModel = oDialog.getControl ("txtPrompt2").getModel
+	oTextModel.setPropertyValue ("Label", sPrompt2)
+	oListModel2 = oDialog.getControl ("lstData2").getModel
+	oListModel2.setPropertyValue ("StringItemList", mLabels)
+	mSelected (0) = 1
+	oListModel2.setPropertyValue ("SelectedItems", mSelected)
+	
+	nResult = oDialog.execute
+	oDialog.dispose
+	
+	' Cancelled
+	If nResult = 0 Then
+		Exit Function
+	End If
+	
+	nColumn = oListModel1.getPropertyValue ("SelectedItems") (0)
+	mRanges (0) = oRange.getCellRangeByPosition ( _
+		nColumn, 0, nColumn, oRange.getRows.getCount - 1)
+	nColumn = oListModel2.getPropertyValue ("SelectedItems") (0)
+	mRanges (1) = oRange.getCellRangeByPosition ( _
+		nColumn, 0, nColumn, oRange.getRows.getCount - 1)
+	fnSpecifyData = mRanges
+End Function
+
 ' fnAskDataRange: Asks the user for the data range, or null when
 '                 the user cancelled
 Function fnAskDataRange (oDoc As Object) As Object
-	Dim oRange As Object, sPrompt As String, sCellsData As String
-	
-	oRange = fnFindActiveDataRange (oDoc)
-	If IsNull (oRange) Then
-		sCellsData = ""
-	Else
-		sCellsData = oRange.getPropertyValue ("AbsoluteName")
-	End If
-	sPrompt = "Cells with the data:"
-	
-	' Loop until we get good answer
-	Do While sPrompt <> ""
-		sCellsData = InputBox (sPrompt, "Step 1/2: Select the data range", sCellsData)
-		
-		' Cancelled
-		If sCellsData = "" Then
-			Exit Function
-		End If
-		
-		oRange = fnCheckRangeName (oDoc, sCellsData)
-		If IsNull (oRange) Then
-			sPrompt = "The range """ & sCellsData & """ does not exist."
-		Else
-			If oRange.getRows.getCount < 2 Or oRange.getColumns.getCount < 2 Then
-				sPrompt = "The range """ & sCellsData & """ is too small (at least 2×2)."
-			Else
-				sPrompt = ""
-				oDoc.getCurrentController.select (oRange)
-				fnAskDataRange = oRange
-				Exit Function
-			End If
-		End If
-	Loop
-End Function
-
-' fnAskDataRange2: Asks the user for the data range, or null when
-'                 the user cancelled
-Function fnAskDataRange2 (oDoc As Object) As Object
 	Dim oRange As Object
-	Dim oDialogModel As Object, oDialog As Object, nResult As Integer
+	Dim oDialog As Object, nResult As Integer
 	Dim oTextModel As Object, oEditModel As Object
-	Dim oButtonModel As Object
 	Dim sPrompt As String, sCellsData As String
 	
 	oRange = fnFindActiveDataRange (oDoc)
@@ -153,66 +147,17 @@ Function fnAskDataRange2 (oDoc As Object) As Object
 	Else
 		sCellsData = oRange.getPropertyValue ("AbsoluteName")
 	End If
-	sPrompt = "Cells with the data:"
+	sPrompt = "&27.Dlg1AskRange.txtPrompt.Label"
 	
 	' Loop until we finds good data
 	Do While sPrompt <> ""
-		' Creates a dialog
-		oDialogModel = CreateUnoService ( _
-			"com.sun.star.awt.UnoControlDialogModel")
-		oDialogModel.setPropertyValue ("PositionX", 200)
-		oDialogModel.setPropertyValue ("PositionY", 200)
-		oDialogModel.setPropertyValue ("Height", 65)
-		oDialogModel.setPropertyValue ("Width", 95)
-		oDialogModel.setPropertyValue ("Title", "Step 1/2: Select the data range")
-		
-		' Adds the prompt.
-		oTextModel = oDialogModel.createInstance ( _
-			"com.sun.star.awt.UnoControlFixedTextModel")
-		oTextModel.setPropertyValue ("PositionX", 5)
-		oTextModel.setPropertyValue ("PositionY", 5)
-		oTextModel.setPropertyValue ("Height", 15)
-		oTextModel.setPropertyValue ("Width", 85)
+		' Runs the dialog
+		oDialog = CreateUnoDialog (DialogLibraries.Stats.Dlg1AskRange)
+		oTextModel = oDialog.getControl ("txtPrompt").getModel
 		oTextModel.setPropertyValue ("Label", sPrompt)
-		oTextModel.setPropertyValue ("MultiLine", True)
-		oTextModel.setPropertyValue ("TabIndex", 1)
-		oDialogModel.insertByName ("txtPrompt", oTextModel)
-		
-		' Adds the text input.
-		oEditModel = oDialogModel.createInstance ( _
-			"com.sun.star.awt.UnoControlEditModel")
-		oEditModel.setPropertyValue ("PositionX", 5)
-		oEditModel.setPropertyValue ("PositionY", 25)
-		oEditModel.setPropertyValue ("Height", 15)
-		oEditModel.setPropertyValue ("Width", 85)
+		oEditModel = oDialog.getControl ("edtCellsData").getModel
 		oEditModel.setPropertyValue ("Text", sCellsData)
-		oDialogModel.insertByName ("edtCellsData", oEditModel)
 		
-		' Adds the buttons.
-		oButtonModel = oDialogModel.createInstance ( _
-			"com.sun.star.awt.UnoControlButtonModel")
-		oButtonModel.setPropertyValue ("PositionX", 5)
-		oButtonModel.setPropertyValue ("PositionY", 45)
-		oButtonModel.setPropertyValue ("Height", 15)
-		oButtonModel.setPropertyValue ("Width", 40)
-		oButtonModel.setPropertyValue ("PushButtonType", _
-			com.sun.star.awt.PushButtonType.CANCEL)
-		oDialogModel.insertByName ("btnClose", oButtonModel)
-		
-		oButtonModel = oDialogModel.createInstance ( _
-			"com.sun.star.awt.UnoControlButtonModel")
-		oButtonModel.setPropertyValue ("PositionX", 50)
-		oButtonModel.setPropertyValue ("PositionY", 45)
-		oButtonModel.setPropertyValue ("Height", 15)
-		oButtonModel.setPropertyValue ("Width", 40)
-		oButtonModel.setPropertyValue ("PushButtonType", _
-			com.sun.star.awt.PushButtonType.OK)
-		oDialogModel.insertByName ("btnOK", oButtonModel)
-		
-		' Adds the dialog model to the control and runs it.
-		oDialog = CreateUnoService ("com.sun.star.awt.UnoControlDialog")
-		oDialog.setModel (oDialogModel)
-		oDialog.setVisible (True)
 		nResult = oDialog.execute
 		oDialog.dispose
 		
@@ -223,14 +168,14 @@ Function fnAskDataRange2 (oDoc As Object) As Object
 		
 		sCellsData = oEditModel.getPropertyValue ("Text")
 		If sCellsData = "" Then
-			sPrompt = "Cells with the data:"
+			sPrompt = "&27.Dlg1AskRange.txtPrompt.Label"
 		Else
 			oRange = fnCheckRangeName (oDoc, sCellsData)
 			If IsNull (oRange) Then
-				sPrompt = "The range """ & sCellsData & """ does not exist."
+				sPrompt = "&35.Dlg1AskRange.txtPrompt.LabelNotExists"
 			Else
 				If oRange.getRows.getCount < 2 Or oRange.getColumns.getCount < 2 Then
-					sPrompt = "The range """ & sCellsData & """ is too small (at least 2×2)."
+					sPrompt = "&36.Dlg1AskRange.txtPrompt.LabelTooSmall"
 				Else
 					sPrompt = ""
 					oDoc.getCurrentController.select (oRange)
