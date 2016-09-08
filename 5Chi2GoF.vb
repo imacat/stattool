@@ -55,9 +55,9 @@ Sub subRunChi2GoodnessOfFit As Object
 	
 	' Reports the chi-square goodness of fit
 	subReportChi2GoodnessOfFit (ThisComponent, mRanges (0), mRanges (1))
+	oSheet = oSheets.getByName (sSheetName & "_chi2")
 	
 	' Makes the report sheet active.
-	oSheet = oSheets.getByName (sSheetName & "_chi2")
 	ThisComponent.getCurrentController.setActiveSheet (oSheet)
 End Sub
 

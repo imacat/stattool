@@ -72,9 +72,9 @@ Sub subRunIndependentTTest As Object
 	
 	' Reports the independent T-test.
 	subReportIndependentTTest (ThisComponent, mRanges (0), mRanges (1))
+	oSheet = oSheets.getByName (sSheetName & "_ttest")
 	
 	' Makes the report sheet active.
-	oSheet = oSheets.getByName (sSheetName & "_ttest")
 	ThisComponent.getCurrentController.setActiveSheet (oSheet)
 End Sub
 

@@ -72,9 +72,9 @@ Sub subRunANOVA As Object
 	
 	' Reports the ANOVA (Analyze of Variances)
 	subReportANOVA (ThisComponent, mRanges (0), mRanges (1))
+	oSheet = oSheets.getByName (sSheetName & "_anova")
 	
 	' Makes the report sheet active.
-	oSheet = oSheets.getByName (sSheetName & "_anova")
 	ThisComponent.getCurrentController.setActiveSheet (oSheet)
 End Sub
 
