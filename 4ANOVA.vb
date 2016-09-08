@@ -57,7 +57,7 @@ Sub subRunANOVA As Object
 		Else
 			sExisted = "Spreadsheet " & sExisted & " exists.  Overwrite?"
 		End If
-		nResult = MsgBox(sExisted, MB_YESNO + MB_DEFBUTTON2 + MB_ICONQUESTION)
+		nResult = MsgBox (sExisted, MB_YESNO + MB_DEFBUTTON2 + MB_ICONQUESTION)
 		If nResult = IDNO Then
 			Exit Sub
 		End If

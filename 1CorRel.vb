@@ -45,7 +45,7 @@ Sub subRunCorrelation As Object
 	sSheetName = oRange.getSpreadsheet.getName
 	If oSheets.hasByName (sSheetName & "_correl") Then
 		sExisted = "Spreadsheet """ & sSheetName & "_correl"" exists.  Overwrite?"
-		nResult = MsgBox(sExisted, MB_YESNO + MB_DEFBUTTON2 + MB_ICONQUESTION)
+		nResult = MsgBox (sExisted, MB_YESNO + MB_DEFBUTTON2 + MB_ICONQUESTION)
 		If nResult = IDNO Then
 			Exit Sub
 		End If
