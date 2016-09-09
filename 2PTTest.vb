@@ -98,6 +98,8 @@ Sub subAddChart (oSheet As Object, oDataXRange As Object, oDataYRange As Object)
 	oDiagram.getXAxisTitle.setPropertyValue ("String", sTitle)
 	sTitle = oDataYRange.getCellByPosition (0, 0).getString
 	oDiagram.getYAxisTitle.setPropertyValue ("String", sTitle)
+	oDiagram.getXAxis.setPropertyValue ("Min", 0)
+	oDiagram.getYAxis.setPropertyValue ("Min", 0)
 	oChartDoc.setDiagram (oDiagram)
 	
 	oProvider = oChartDoc.getDataProvider
