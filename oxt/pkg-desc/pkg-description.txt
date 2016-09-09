@@ -1,0 +1,4 @@
+StatTool - Office Statistics Tools
+Copyright (c) 2016 imacat 
+
+An additional Calc menu to for statistical tests.

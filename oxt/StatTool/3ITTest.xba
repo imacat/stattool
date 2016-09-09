@@ -1,0 +1,811 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="3ITTest" script:language="StarBasic">&apos; Copyright (c) 2016 imacat.
+&apos; 
+&apos; Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+&apos; you may not use this file except in compliance with the License.
+&apos; You may obtain a copy of the License at
+&apos; 
+&apos;     http://www.apache.org/licenses/LICENSE-2.0
+&apos; 
+&apos; Unless required by applicable law or agreed to in writing, software
+&apos; distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+&apos; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+&apos; See the License for the specific language governing permissions and
+&apos; limitations under the License.
+
+&apos; 3ITTest: The macros to for generating the report of independent T-Test
+&apos;   by imacat &lt;imacat@mail.imacat.idv.tw&gt;, 2016-08-24
+
+Option Explicit
+
+&apos; subRunIndependentTTest: Runs the independent T-test.
+Sub subRunIndependentTTest As Object
+	Dim oRange As Object
+	Dim oSheets As Object, sSheetName As String
+	Dim oSheet As Object, mRanges As Object
+	Dim sExisted As String, nResult As Integer
+	
+	DialogLibraries.loadLibrary &quot;StatTool&quot;
+	
+	&apos; Asks the user for the data range
+	oRange = fnAskDataRange (ThisComponent)
+	If IsNull (oRange) Then
+		Exit Sub
+	End If
+	
+	&apos; Specifies the data
+	mRanges = fnSpecifyData (oRange, _
+		&quot;&amp;10.Dlg2SpecData.txtPrompt1.Label3ITTest&quot;, _
+		&quot;&amp;11.Dlg2SpecData.txtPrompt2.Label3ITTest&quot;)
+	If IsNull (mRanges) Then
+		Exit Sub
+	End If
+	
+	&apos; Checks the existing report
+	oSheets = ThisComponent.getSheets
+	sSheetName = oRange.getSpreadsheet.getName
+	sExisted = &quot;&quot;
+	If oSheets.hasByName (sSheetName &amp; &quot;_ttest&quot;) Then
+		sExisted = sExisted &amp; &quot;, &quot;&quot;&quot; &amp; sSheetName &amp; &quot;_ttest&quot;&quot;&quot;
+	End If
+	If oSheets.hasByName (sSheetName &amp; &quot;_ttesttmp&quot;) Then
+		sExisted = sExisted &amp; &quot;, &quot;&quot;&quot; &amp; sSheetName &amp; &quot;_ttesttmp&quot;&quot;&quot;
+	End If
+	If sExisted &lt;&gt; &quot;&quot; Then
+		sExisted = Right (sExisted, Len (sExisted) - 2)
+		If InStr (sExisted, &quot;,&quot;) &gt; 0 Then
+			sExisted = &quot;Spreadsheets &quot; &amp; sExisted &amp; &quot; exist.  Overwrite?&quot;
+		Else
+			sExisted = &quot;Spreadsheet &quot; &amp; sExisted &amp; &quot; exists.  Overwrite?&quot;
+		End If
+		nResult = MsgBox (sExisted, MB_YESNO + MB_DEFBUTTON2 + MB_ICONQUESTION)
+		If nResult = IDNO Then
+			Exit Sub
+		End If
+		&apos; Drops the existing report
+		If oSheets.hasByName (sSheetName &amp; &quot;_ttest&quot;) Then
+			oSheets.removeByname (sSheetName &amp; &quot;_ttest&quot;)
+		End If
+		If oSheets.hasByName (sSheetName &amp; &quot;_ttesttmp&quot;) Then
+			oSheets.removeByname (sSheetName &amp; &quot;_ttesttmp&quot;)
+		End If
+	End If
+	
+	&apos; Reports the independent T-test.
+	subReportIndependentTTest (ThisComponent, mRanges (0), mRanges (1))
+	oSheet = oSheets.getByName (sSheetName &amp; &quot;_ttest&quot;)
+	
+	&apos; Makes the report sheet active.
+	ThisComponent.getCurrentController.setActiveSheet (oSheet)
+End Sub
+
+&apos; subReportIndependentTTest: Reports the independent T-test
+Sub subReportIndependentTTest (oDoc As Object, oLabelColumn As Object, oScoreColumn As Object)
+	Dim oSheets As Object, sSheetName As String
+	Dim mNames () As String, nI As Integer, nSheetIndex As Integer
+	Dim oSheet As Object, oColumns As Object, nRow As Integer
+	Dim oCell As Object, oCells As Object, oCursor As Object, oTempDataRange As Object
+	Dim nN As Integer, sFormula As String, sSP2 As String
+	Dim sNotes As String, nPos As Integer
+	Dim nFormatN As Integer, nFormatF As Integer, nFormatP As Integer
+	Dim aBorderSingle As New com.sun.star.table.BorderLine
+	Dim aBorderDouble As New com.sun.star.table.BorderLine
+	Dim sCellXLabel As String, sCellsXData As String
+	Dim sCellXN As String, sCellXMean As String, sCellXS As String
+	Dim sCellYLabel As String, sCellsYData As String
+	Dim sCellYN As String, sCellYMean As String, sCellYS As String
+	Dim sCellF As String, sCellsN As String, sCellN As String
+	
+	oSheets = oDoc.getSheets
+	sSheetName = oLabelColumn.getSpreadsheet.getName
+	mNames = oSheets.getElementNames
+	For nI = 0 To UBound (mNames)
+		If mNames (nI) = sSheetName Then
+			nSheetIndex = nI
+		End If
+	Next nI
+	
+	oSheets.insertNewByName (sSheetName &amp; &quot;_ttesttmp&quot;, nSheetIndex + 1)
+	oSheet = oSheets.getByName (sSheetName &amp; &quot;_ttesttmp&quot;)
+	oTempDataRange = fnCollectIndependentTTestData (oSheet, oLabelColumn, oScoreColumn)
+	
+	oSheets.insertNewByName (sSheetName &amp; &quot;_ttest&quot;, nSheetIndex + 1)
+	oSheet = oSheets.getByName (sSheetName &amp; &quot;_ttest&quot;)
+	
+	sCellXLabel = fnGetRangeName (oTempDataRange.getCellByPosition (0, 0))
+	nN = oTempDataRange.getCellByPosition (0, oTempDataRange.getRows.getCount - 3).getValue
+	oCells = oTempDataRange.getCellRangeByPosition (0, 1, 0, nN)
+	sCellsXData = fnGetRangeName (oCells)
+	sCellYLabel = fnGetRangeName (oTempDataRange.getCellByPosition (1, 0))
+	nN = oTempDataRange.getCellByPosition (1, oTempDataRange.getRows.getCount - 3).getValue
+	oCells = oTempDataRange.getCellRangeByPosition (1, 1, 1, nN)
+	sCellsYData = fnGetRangeName (oCells)
+	
+	&apos; Obtains the format parameters for the report.
+	nFormatN = fnQueryFormat (oDoc, &quot;#,##0&quot;)
+	nFormatF = fnQueryFormat (oDoc, &quot;#,###.000&quot;)
+	nFormatP = fnQueryFormat (oDoc, &quot;[&lt;0.01]#.000&quot;&quot;**&quot;&quot;;[&lt;0.05]#.000&quot;&quot;*&quot;&quot;;#.000&quot;)
+	
+	aBorderSingle.OuterLineWidth = 2
+	aBorderDouble.OuterLineWidth = 2
+	aBorderDouble.InnerLineWidth = 2
+	aBorderDouble.LineDistance = 2
+	
+	&apos; Sets the column widths of the report.
+	oColumns = oSheet.getColumns
+	oColumns.getByIndex (0).setPropertyValue (&quot;Width&quot;, 3060)
+	oColumns.getByIndex (1).setPropertyValue (&quot;Width&quot;, 2080)
+	oColumns.getByIndex (2).setPropertyValue (&quot;Width&quot;, 2080)
+	oColumns.getByIndex (3).setPropertyValue (&quot;Width&quot;, 2080)
+	oColumns.getByIndex (4).setPropertyValue (&quot;Width&quot;, 2080)
+	
+	nRow = -2
+	
+	&apos; Group description
+	nRow = nRow + 2
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Group Description&quot;)
+	oCell.setPropertyValue (&quot;CellStyle&quot;, &quot;Result2&quot;)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, 4, nRow)
+	oCells.merge (True)
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Group&quot;)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	oCell.setString (&quot;N&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	oCell.setString (&quot;X&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharOverline&quot;, com.sun.star.awt.FontUnderline.SINGLE)
+	oCell = oSheet.getCellByPosition (3, nRow)
+	oCell.setString (&quot;s&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (4, nRow)
+	oCell.setString (&quot;sX&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharOverline&quot;, com.sun.star.awt.FontUnderline.SINGLE)
+	
+	&apos; The first group
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	sFormula = &quot;=&quot; &amp; sCellXLabel
+	oCell.setFormula (sFormula)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	sFormula = &quot;=COUNT(&quot; &amp; sCellsXData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatN)
+	sCellXN = fnGetLocalRangeName (oCell)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	sFormula = &quot;=AVERAGE(&quot; &amp; sCellsXData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	sCellXMean = fnGetLocalRangeName (oCell)
+	oCell = oSheet.getCellByPosition (3, nRow)
+	sFormula = &quot;=STDEV(&quot; &amp; sCellsXData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	sCellXS = fnGetLocalRangeName (oCell)
+	oCell = oSheet.getCellByPosition (4, nRow)
+	sFormula = &quot;=&quot; &amp; sCellXS &amp; &quot;/SQRT(&quot; &amp; sCellXN &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	
+	&apos; The second group
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	sFormula = &quot;=&quot; &amp; sCellYLabel
+	oCell.setFormula (sFormula)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	sFormula = &quot;=COUNT(&quot; &amp; sCellsYData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatN)
+	sCellYN = fnGetLocalRangeName (oCell)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	sFormula = &quot;=AVERAGE(&quot; &amp; sCellsYData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	sCellYMean = fnGetLocalRangeName (oCell)
+	oCell = oSheet.getCellByPosition (3, nRow)
+	sFormula = &quot;=STDEV(&quot; &amp; sCellsYData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	sCellYS = fnGetLocalRangeName (oCell)
+	oCell = oSheet.getCellByPosition (4, nRow)
+	sFormula = &quot;=&quot; &amp; sCellYS &amp; &quot;/SQRT(&quot; &amp; sCellYN &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	
+	&apos; Draws the table borders.
+	oCells = oSheet.getCellByPosition (0, nRow - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellRangeByPosition (1, nRow - 2, 4, nRow - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellByPosition (0, nRow - 1)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellByPosition (0, nRow)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	oCells = oSheet.getCellRangeByPosition (1, nRow, 4, nRow)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	
+	&apos; Levene&apos;s test for homogeneity of variances
+	nRow = nRow + 2
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Test for Homogeneity of Variances&quot;)
+	oCell.setPropertyValue (&quot;CellStyle&quot;, &quot;Result2&quot;)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, 4, nRow)
+	oCells.merge (True)
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Test&quot;)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	oCell.setString (&quot;F&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	oCell.setString (&quot;p&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	
+	&apos; The test result.
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Levene’s Test&quot;)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	sFormula = &quot;=&quot; &amp; fnGetLeveneTest (oTempDataRange)
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	sCellF = fnGetLocalRangeName (oCell)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	sCellsN = fnGetRangeName (oTempDataRange.getCellRangeByPosition (0, oTempDataRange.getRows.getCount - 3, 1, oTempDataRange.getRows.getCount - 3))
+	sCellN = fnGetRangeName (oTempDataRange.getCellByPosition (4, oTempDataRange.getRows.getCount - 3))
+	sFormula = &quot;=FDIST(&quot; &amp; sCellF &amp; &quot;;COUNT(&quot; &amp; sCellsN &amp; &quot;)-1;&quot; &amp; sCellN &amp; &quot;-COUNT(&quot; &amp; sCellsN &amp; &quot;))&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatP)
+	
+	&apos; The foot notes of the test.
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Note: *: p&lt;.05, **: p&lt;.01&quot; &amp; Chr (10) &amp; _
+		&quot;H0: σ1=σ2 (homogeneity; the populations of the two groups have the same variances).&quot; &amp; Chr (10) &amp; _
+		&quot;H1: σ1≠σ2 (heterogeneity; the populations of the two groups have different variances) if the probability (p) is small enough.&quot;)
+	oCell.setPropertyValue (&quot;IsTextWrapped&quot;, True)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, 4, nRow)
+	oCells.merge (True)
+	sNotes = oCell.getString
+	oCursor = oCell.createTextCursor
+	nPos = InStr (sNotes, &quot;p&lt;&quot;)
+	Do While nPos &lt;&gt; 0
+		oCursor.gotoStart (False)
+		oCursor.goRight (nPos - 1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		nPos = InStr (nPos + 1, sNotes, &quot;p&lt;&quot;)
+	Loop
+	nPos = InStr (sNotes, &quot;(p)&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	nPos = InStr (sNotes, &quot;σ&quot;)
+	Do While nPos &lt;&gt; 0
+		oCursor.gotoStart (False)
+		oCursor.goRight (nPos - 1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		nPos = InStr (nPos + 1, sNotes, &quot;σ&quot;)
+	Loop
+	nPos = InStr (sNotes, &quot;H0&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos - 1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	nPos = InStr (sNotes, &quot;H1&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos - 1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	
+	&apos; Draws the table borders.
+	oCells = oSheet.getCellByPosition (0, nRow - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellRangeByPosition (1, nRow - 2, 2, nRow - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellByPosition (0, nRow - 1)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	oCells = oSheet.getCellRangeByPosition (1, nRow - 1, 2, nRow - 1)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	
+	&apos; The independent samples T-test
+	nRow = nRow + 2
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Independent Samples T-Test&quot;)
+	oCell.setPropertyValue (&quot;CellStyle&quot;, &quot;Result2&quot;)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, 4, nRow)
+	oCells.merge (True)
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Type&quot;)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	oCell.setString (&quot;t&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	oCell.setString (&quot;df&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (3, nRow)
+	oCell.setString (&quot;p&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (4, nRow)
+	oCell.setString (&quot;X1-X2&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharOverline&quot;, com.sun.star.awt.FontUnderline.SINGLE)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharOverline&quot;, com.sun.star.awt.FontUnderline.SINGLE)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	
+	&apos; The test of the homogeneity of variances.
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Homogeneity&quot;)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	sSP2 = &quot;((SUMPRODUCT(&quot; &amp; sCellsXData &amp; &quot;;&quot; &amp; sCellsXData &amp; &quot;)-POWER(SUM(&quot; &amp; sCellsXData &amp; &quot;);2)/&quot; &amp; sCellXN &amp; &quot;+SUMPRODUCT(&quot; &amp; sCellsYData &amp; &quot;;&quot; &amp; sCellsYData &amp; &quot;)-POWER(SUM(&quot; &amp; sCellsYData &amp; &quot;);2)/&quot; &amp; sCellYN &amp; &quot;)/(&quot; &amp; sCellXN &amp; &quot;+&quot; &amp; sCellYN &amp; &quot;-2))&quot;
+	sFormula = &quot;=(&quot; &amp; sCellXMean &amp; &quot;-&quot; &amp; sCellYMean &amp; &quot;)/SQRT(&quot; &amp; sSP2 &amp; &quot;*(1/&quot; &amp; sCellXN &amp; &quot;+1/&quot; &amp; sCellYN &amp; &quot;))&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	sFormula = &quot;=&quot; &amp;  sCellXN &amp; &quot;+&quot; &amp; sCellYN &amp; &quot;-2&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatN)
+	oCell = oSheet.getCellByPosition (3, nRow)
+	sFormula = &quot;=TTEST(&quot; &amp;  sCellsXData &amp; &quot;;&quot; &amp; sCellsYData &amp; &quot;;2;2)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatP)
+	oCell = oSheet.getCellByPosition (4, nRow)
+	sFormula = &quot;=&quot; &amp;  sCellXMean &amp; &quot;-&quot; &amp; sCellYMean
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	
+	&apos; The test of the heterogeneity of variances.
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Heterogeneity&quot;)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	sFormula = &quot;=(&quot; &amp; sCellXMean &amp; &quot;-&quot; &amp; sCellYMean &amp; &quot;)/SQRT(POWER(&quot; &amp; sCellXS &amp; &quot;;2)/&quot; &amp; sCellXN &amp; &quot;+POWER(&quot; &amp; sCellYS &amp; &quot;;2)/&quot; &amp; sCellYN &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	sFormula = &quot;=POWER(POWER(&quot; &amp; sCellXS &amp; &quot;;2)/&quot; &amp; sCellXN &amp; &quot;+POWER(&quot; &amp; sCellYS &amp; &quot;;2)/&quot; &amp; sCellYN &amp; &quot;;2)/(POWER(&quot; &amp; sCellXS &amp; &quot;;4)/(POWER(&quot; &amp; sCellXN &amp; &quot;;2)*(&quot; &amp; sCellXN &amp; &quot;-1))+POWER(&quot; &amp; sCellYS &amp; &quot;;4)/(POWER(&quot; &amp; sCellYN &amp; &quot;;2)*(&quot; &amp; sCellYN &amp; &quot;-1)))&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	oCell = oSheet.getCellByPosition (3, nRow)
+	sFormula = &quot;=TTEST(&quot; &amp;  sCellsXData &amp; &quot;;&quot; &amp; sCellsYData &amp; &quot;;2;3)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatP)
+	oCell = oSheet.getCellByPosition (4, nRow)
+	sFormula = &quot;=&quot; &amp;  sCellXMean &amp; &quot;-&quot; &amp; sCellYMean
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	
+	&apos; The foot notes of the test.
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Note: *: p&lt;.05, **: p&lt;.01&quot; &amp; Chr (10) &amp; _
+		&quot;H0: μ1=μ2 (the populations of the two groups have the same means).&quot; &amp; Chr (10) &amp; _
+		&quot;H1: μ1≠μ2 (the populations of the two groups have different means) if the probability (p) is small enough.&quot;)
+	oCell.setPropertyValue (&quot;IsTextWrapped&quot;, True)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, 4, nRow)
+	oCells.merge (True)
+	sNotes = oCell.getString
+	oCursor = oCell.createTextCursor
+	nPos = InStr (sNotes, &quot;p&lt;&quot;)
+	Do While nPos &lt;&gt; 0
+		oCursor.gotoStart (False)
+		oCursor.goRight (nPos - 1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		nPos = InStr (nPos + 1, sNotes, &quot;p&lt;&quot;)
+	Loop
+	nPos = InStr (sNotes, &quot;(p)&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	nPos = InStr (sNotes, &quot;μ&quot;)
+	Do While nPos &lt;&gt; 0
+		oCursor.gotoStart (False)
+		oCursor.goRight (nPos - 1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		nPos = InStr (nPos + 1, sNotes, &quot;μ&quot;)
+	Loop
+	nPos = InStr (sNotes, &quot;H0&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos - 1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	nPos = InStr (sNotes, &quot;H1&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos - 1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	
+	&apos; Draws the table borders.
+	oCells = oSheet.getCellByPosition (0, nRow - 3)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellRangeByPosition (1, nRow - 3, 4, nRow - 3)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellByPosition (0, nRow - 2)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellByPosition (0, nRow - 1)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	oCells = oSheet.getCellRangeByPosition (1, nRow - 1, 4, nRow - 1)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+End Sub
+
+&apos; fnCollectIndependentTTestData: Collects the data for the independent T-test.
+Function fnCollectIndependentTTestData (oReportSheet As Object, oLabelColumn As Object, oScoreColumn As Object) As Object
+	Dim nRow As Integer, nNRow As Integer, sCellZMean As String, sCellsN As String
+	Dim oCell As Object, oCells As Object, oCursor As Object
+	Dim sCell As String, sLabel As String, sFormula As String
+	Dim sCellXLabel As String, sCellsXData As String, sCellXMean As String
+	Dim sXLabel As String, nNX As Integer
+	Dim sCellsXZData As String, sCellXZMean As String
+	Dim sCellYLabel As String, sCellsYData As String, sCellYMean As String
+	Dim sYLabel As String, nNY As Integer
+	Dim sCellsYZData As String, sCellYZMean As String
+	
+	sCellXLabel = &quot;&quot;
+	sCellYLabel = &quot;&quot;
+	For nRow = 1 To oLabelColumn.getRows.getCount - 1
+		oCell = oLabelColumn.getCellByPosition (0, nRow)
+		sLabel = oCell.getString
+		If sLabel &lt;&gt; &quot;&quot; Then
+			If sCellXLabel = &quot;&quot; Then
+				sCellXLabel = fnGetRangeName (oCell)
+				sXLabel = sLabel
+			Else
+				If sLabel &lt;&gt; sXLabel And sCellYLabel = &quot;&quot; Then
+					sCellYLabel = fnGetRangeName (oCell)
+					sYLabel = sLabel
+					nRow = oLabelColumn.getRows.getCount - 1
+				End If
+			End If
+		End If
+	Next nRow
+	
+	&apos; The data labels
+	oCell = oReportSheet.getCellByPosition (0, 0)
+	sFormula = &quot;=&quot; &amp; sCellXLabel
+	oCell.setFormula (sFormula)
+	oCell = oReportSheet.getCellByPosition (1, 0)
+	sFormula = &quot;=&quot; &amp; sCellYLabel
+	oCell.setFormula (sFormula)
+	
+	&apos; The data
+	nNX = 0
+	nNY = 0
+	For nRow = 1 To oLabelColumn.getRows.getCount - 1
+		If oLabelColumn.getCellByPosition (0, nRow).getString = sXLabel Then
+			nNX = nNX + 1
+			sFormula = &quot;=&quot; &amp; fnGetRangeName (oScoreColumn.getCellByPosition (0, nRow))
+			oReportSheet.getCellByPosition (0, nNX).setFormula (sFormula)
+		Else
+			If oLabelColumn.getCellByPosition (0, nRow).getString = sYLabel Then
+				nNY = nNY + 1
+				sFormula = &quot;=&quot; &amp; fnGetRangeName (oScoreColumn.getCellByPosition (0, nRow))
+				oReportSheet.getCellByPosition (1, nNY).setFormula (sFormula)
+			End If
+		End If
+	Next nRow
+	
+	&apos; Collects the data
+	sCellsXData = fnGetLocalRangeName (oReportSheet.getCellRangeByPosition (0, 1, 0, nNX))
+	sCellsYData = fnGetLocalRangeName (oReportSheet.getCellRangeByPosition (1, 1, 1, nNY))
+	If nNX &gt; nNY Then
+		nNRow = nNX + 1
+	Else
+		nNRow = nNY + 1
+	End If
+	oCell = oReportSheet.getCellByPosition (0, nNRow)
+	sFormula = &quot;=COUNT(&quot; &amp; sCellsXData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell = oReportSheet.getCellByPosition (1, nNRow)
+	sFormula = &quot;=COUNT(&quot; &amp; sCellsYData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell = oReportSheet.getCellByPosition (0, nNRow + 1)
+	sFormula = &quot;=AVERAGE(&quot; &amp; sCellsXData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	sCellXMean = fnGetLocalRangeName (oCell)
+	oCell = oReportSheet.getCellByPosition (1, nNRow + 1)
+	sFormula = &quot;=AVERAGE(&quot; &amp; sCellsYData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	sCellYMean = fnGetLocalRangeName (oCell)
+	oCells = oReportSheet.getCellRangeByPosition (0, nNRow, 1, nNRow)
+	sCellsN = fnGetLocalRangeName (oCells)
+	
+	&apos; Calculates the Z values
+	sCell = fnGetLocalRangeName (oReportSheet.getCellByPosition (0, 0))
+	sFormula = &quot;=&quot;&quot;Z&quot;&quot;&amp;&quot; &amp; sCell
+	oCell = oReportSheet.getCellByPosition (2, 0)
+	oCell.setFormula (sFormula)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	For nRow = 1 To nNX
+		sCell = fnGetLocalRangeName (oReportSheet.getCellByPosition (0, nRow))
+		sFormula = &quot;=ABS(&quot; &amp; sCell &amp; &quot;-&quot; &amp; sCellXMean &amp; &quot;)&quot;
+		oCell = oReportSheet.getCellByPosition (2, nRow)
+		oCell.setFormula (sFormula)
+	Next nRow
+	sCellsXZData = fnGetLocalRangeName (oReportSheet.getCellRangeByPosition (2, 1, 2, nNX))
+	oCell = oReportSheet.getCellByPosition (2, nNRow + 1)
+	sFormula = &quot;=AVERAGE(&quot; &amp; sCellsXZData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	sCellXZMean = fnGetLocalRangeName (oCell)
+	
+	sCell = fnGetLocalRangeName (oReportSheet.getCellByPosition (1, 0))
+	sFormula = &quot;=&quot;&quot;Z&quot;&quot;&amp;&quot; &amp; sCell
+	oCell = oReportSheet.getCellByPosition (3, 0)
+	oCell.setFormula (sFormula)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	For nRow = 1 To nNY
+		sCell = fnGetLocalRangeName (oReportSheet.getCellByPosition (1, nRow))
+		sFormula = &quot;=ABS(&quot; &amp; sCell &amp; &quot;-&quot; &amp; sCellYMean &amp; &quot;)&quot;
+		oCell = oReportSheet.getCellByPosition (3, nRow)
+		oCell.setFormula (sFormula)
+	Next nRow
+	sCellsYZData = fnGetLocalRangeName (oReportSheet.getCellRangeByPosition (3, 1, 3, nNY))
+	oCell = oReportSheet.getCellByPosition (3, nNRow + 1)
+	sFormula = &quot;=AVERAGE(&quot; &amp; sCellsYZData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	sCellYZMean = fnGetLocalRangeName (oCell)
+	
+	&apos; Calculates the total average
+	oCell = oReportSheet.getCellByPosition (4, nNRow)
+	sFormula = &quot;=SUM(&quot; &amp; sCellsN &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell = oReportSheet.getCellByPosition (4, nNRow + 1)
+	sFormula = &quot;=AVERAGE(&quot; &amp; sCellsXZData &amp; &quot;;&quot; &amp; sCellsYZData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	sCellZMean = fnGetLocalRangeName (oCell)
+	
+	&apos; Calculates the difference of the Z values to their means
+	sCell = fnGetLocalRangeName (oReportSheet.getCellByPosition (0, 0))
+	sFormula = &quot;=&quot;&quot;dZ&quot;&quot;&amp;&quot; &amp; sCell
+	oCell = oReportSheet.getCellByPosition (4, 0)
+	oCell.setFormula (sFormula)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	oCursor.collapseToEnd
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -44)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 34)
+	For nRow = 1 To nNX
+		sCell = fnGetLocalRangeName (oReportSheet.getCellByPosition (2, nRow))
+		sFormula = &quot;=&quot; &amp; sCell &amp; &quot;-&quot; &amp; sCellXZMean
+		oCell = oReportSheet.getCellByPosition (4, nRow)
+		oCell.setFormula (sFormula)
+	Next nRow
+	
+	sCell = fnGetLocalRangeName (oReportSheet.getCellByPosition (1, 0))
+	sFormula = &quot;=&quot;&quot;dZ&quot;&quot;&amp;&quot; &amp; sCell
+	oCell = oReportSheet.getCellByPosition (5, 0)
+	oCell.setFormula (sFormula)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	oCursor.collapseToEnd
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -44)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 34)
+	For nRow = 1 To nNY
+		sCell = fnGetLocalRangeName (oReportSheet.getCellByPosition (3, nRow))
+		sFormula = &quot;=&quot; &amp; sCell &amp; &quot;-&quot; &amp; sCellYZMean
+		oCell = oReportSheet.getCellByPosition (5, nRow)
+		oCell.setFormula (sFormula)
+	Next nRow
+	
+	&apos; Calculates the difference of the Z means to the total mean
+	sCell = fnGetLocalRangeName (oReportSheet.getCellByPosition (2, nNRow + 1))
+	sFormula = &quot;=&quot; &amp; sCell &amp; &quot;-&quot; &amp; sCellZMean
+	oCell = oReportSheet.getCellByPosition (2, nNRow + 2)
+	oCell.setFormula (sFormula)
+	sCell = fnGetLocalRangeName (oReportSheet.getCellByPosition (3, nNRow + 1))
+	sFormula = &quot;=&quot; &amp; sCell &amp; &quot;-&quot; &amp; sCellZMean
+	oCell = oReportSheet.getCellByPosition (3, nNRow + 2)
+	oCell.setFormula (sFormula)
+	
+	fnCollectIndependentTTestData = oReportSheet.getCellRangeByPosition (0, 0, 5, nNRow + 2)
+End Function
+
+&apos; fnGetLeveneTest: Returns the Levene&apos;s test result.
+Function fnGetLeveneTest (oZDataRange As Object) As String
+	Dim nK As Integer, nRows As Integer
+	Dim oCell As Object, oCells As Object
+	Dim sCellN As String, sCellsN As String
+	Dim sCellsDZMean As String, sCellsDZData As String
+	
+	nRows = oZDataRange.getRows.getCount
+	nK = oZDataRange.getColumns.getCount / 3
+	oCell = oZDataRange.getCellByPosition (nK * 2, nRows - 3)
+	sCellN = fnGetRangeName (oCell)
+	oCells = oZDataRange.getCellRangeByPosition (0, nRows - 3, nK - 1, nRows - 3)
+	sCellsN = fnGetRangeName (oCells)
+	oCells = oZDataRange.getCellRangeByPosition (nK, nRows - 1, nK * 2 - 1, nRows - 1)
+	sCellsDZMean = fnGetRangeName (oCells)
+	oCells = oZDataRange.getCellRangeByPosition (nK * 2, 1, nK * 3 - 1, nRows - 4)
+	sCellsDZData = fnGetRangeName (oCells)
+	fnGetLeveneTest = &quot;((&quot; &amp; sCellN &amp; &quot;-COUNT(&quot; &amp; sCellsN &amp; &quot;))/(COUNT(&quot; &amp; sCellsN &amp; &quot;)-1))*(SUMPRODUCT(&quot; &amp; sCellsN &amp; &quot;;&quot; &amp; sCellsDZMean &amp; &quot;;&quot; &amp; sCellsDZMean &amp; &quot;)/SUMPRODUCT(&quot; &amp; sCellsDZData &amp; &quot;;&quot; &amp; sCellsDZData &amp; &quot;))&quot;
+End Function
+</script:module>

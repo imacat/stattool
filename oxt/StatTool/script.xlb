@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE library:library PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "library.dtd">
+<library:library xmlns:library="http://openoffice.org/2000/library" library:name="StatTool" library:readonly="false" library:passwordprotected="false">
+ <library:element library:name="1CorRel"/>
+ <library:element library:name="2PTTest"/>
+ <library:element library:name="3ITTest"/>
+ <library:element library:name="4ANOVA"/>
+ <library:element library:name="5Chi2GoF"/>
+ <library:element library:name="9Utils"/>
+</library:library>

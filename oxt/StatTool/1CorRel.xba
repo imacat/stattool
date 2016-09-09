@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="1CorRel" script:language="StarBasic">&apos; Copyright (c) 2016 imacat.
+&apos; 
+&apos; Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+&apos; you may not use this file except in compliance with the License.
+&apos; You may obtain a copy of the License at
+&apos; 
+&apos;     http://www.apache.org/licenses/LICENSE-2.0
+&apos; 
+&apos; Unless required by applicable law or agreed to in writing, software
+&apos; distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+&apos; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+&apos; See the License for the specific language governing permissions and
+&apos; limitations under the License.
+
+&apos; 1CorRel: The macros to for generating the report of the Pearson’s correlation coefficient
+&apos;   by imacat &lt;imacat@mail.imacat.idv.tw&gt;, 2016-08-10
+
+Option Explicit
+
+&apos; subRunCorrelation: Runs the Pearson’s correlation coefficient.
+Sub subRunCorrelation As Object
+	Dim oRange As Object
+	Dim oSheets As Object, sSheetName As String
+	Dim oSheet As Object, mRanges As Object
+	Dim sExisted As String, nResult As Integer
+	
+	DialogLibraries.loadLibrary &quot;StatTool&quot;
+	
+	&apos; Asks the user for the data range
+	oRange = fnAskDataRange (ThisComponent)
+	If IsNull (oRange) Then
+		Exit Sub
+	End If
+	
+	&apos; Specifies the data
+	mRanges = fnSpecifyData (oRange, _
+		&quot;&amp;3.Dlg2SpecData.txtPrompt1.Label1CorRel&quot;, _
+		&quot;&amp;6.Dlg2SpecData.txtPrompt2.Label1CorRel&quot;)
+	If IsNull (mRanges) Then
+		Exit Sub
+	End If
+	
+	&apos; Checks the existing report
+	oSheets = ThisComponent.getSheets
+	sSheetName = oRange.getSpreadsheet.getName
+	If oSheets.hasByName (sSheetName &amp; &quot;_correl&quot;) Then
+		sExisted = &quot;Spreadsheet &quot;&quot;&quot; &amp; sSheetName &amp; &quot;_correl&quot;&quot; exists.  Overwrite?&quot;
+		nResult = MsgBox (sExisted, MB_YESNO + MB_DEFBUTTON2 + MB_ICONQUESTION)
+		If nResult = IDNO Then
+			Exit Sub
+		End If
+		&apos; Drops the existing report
+		oSheets.removeByname (sSheetName &amp; &quot;_correl&quot;)
+	End If
+	
+	&apos; Reports the paired T-test.
+	subReportCorrelation (ThisComponent, mRanges (0), mRanges (1))
+	oSheet = oSheets.getByName (sSheetName &amp; &quot;_correl&quot;)
+	
+	&apos; Adds an X-Y diagram.
+	subAddChart (oSheet, mRanges (0), mRanges (1))
+	
+	&apos; Makes the report sheet active.
+	ThisComponent.getCurrentController.setActiveSheet (oSheet)
+End Sub
+
+&apos; subAddChart: Adds a chart for the data
+Sub subAddChart (oSheet As Object, oDataXRange As Object, oDataYRange As Object)
+	Dim oCharts As Object, oChart As Object
+	Dim oChartDoc As Object, oDiagram As Object
+	Dim aPos As New com.sun.star.awt.Rectangle
+	Dim mAddrs (1) As New com.sun.star.table.CellRangeAddress
+	Dim sTitle As String
+	Dim oProvider As Object, oData As Object
+	Dim sRange As String, mData () As Object
+	
+	&apos; Adds the chart
+	With aPos
+		.X = 0
+		.Y = 3510
+		.Width = 10000
+		.Height = 10000
+	End With
+	mAddrs (0) = oDataXRange.getRangeAddress
+	mAddrs (1) = oDataYRange.getRangeAddress
+	oCharts = oSheet.getCharts
+	oCharts.addNewByName (oSheet.getName, aPos, mAddrs, True, False)
+	oChart = oCharts.getByName (oSheet.getName)
+	oChartDoc = oChart.getEmbeddedObject
+	
+	BasicLibraries.loadLibrary &quot;XrayTool&quot;
+	oDiagram = oChartDoc.createInstance ( _
+		&quot;com.sun.star.chart.XYDiagram&quot;)
+	oDiagram.setPropertyValue (&quot;Lines&quot;, False)
+	oDiagram.setPropertyValue (&quot;HasXAxisGrid&quot;, False)
+	oDiagram.setPropertyValue (&quot;HasYAxisGrid&quot;, False)
+	sTitle = oDataXRange.getCellByPosition (0, 0).getString
+	oDiagram.getXAxisTitle.setPropertyValue (&quot;String&quot;, sTitle)
+	sTitle = oDataYRange.getCellByPosition (0, 0).getString
+	oDiagram.getYAxisTitle.setPropertyValue (&quot;String&quot;, sTitle)
+	oDiagram.getXAxis.setPropertyValue (&quot;Min&quot;, 0)
+	oDiagram.getYAxis.setPropertyValue (&quot;Min&quot;, 0)
+	oChartDoc.setDiagram (oDiagram)
+	
+	oProvider = oChartDoc.getDataProvider
+	mData = oChartDoc.getDataSequences
+	sRange = oDataXRange.getCellByPosition(0, 0).getPropertyValue (&quot;AbsoluteName&quot;)
+	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
+	mData (0).setLabel (oData)
+	sRange = oDataXRange.getCellRangeByPosition(0, 1, 0, oDataXRange.getRows.getCount - 1).getPropertyValue (&quot;AbsoluteName&quot;)
+	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
+	oData.Role = &quot;values-x&quot;
+	mData (0).setValues (oData)
+	sRange = oDataYRange.getCellByPosition(0, 0).getPropertyValue (&quot;AbsoluteName&quot;)
+	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
+	mData (1).setLabel (oData)
+	sRange = oDataYRange.getCellRangeByPosition(0, 1, 0, oDataYRange.getRows.getCount - 1).getPropertyValue (&quot;AbsoluteName&quot;)
+	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
+	oData.Role = &quot;values-y&quot;
+	mData (1).setValues (oData)
+	
+	oChartDoc.setPropertyValue (&quot;HasLegend&quot;, False)
+End Sub
+
+&apos; subReportCorrelation: Reports the Pearson’s correlation coefficient
+Sub subReportCorrelation (oDoc As Object, oDataXRange As Object, oDataYRange As Object)
+	Dim oSheets As Object, sSheetName As String
+	Dim mNames () As String, nI As Integer, nSheetIndex As Integer
+	Dim oSheet As Object, oColumns As Object, nRow As Integer
+	Dim oCell As Object, oCells As Object, oCursor As Object
+	Dim nN As Integer, sFormula As String
+	Dim sNotes As String, nPos As Integer
+	Dim nFormatN As Integer, nFormatF As Integer, nFormatP As Integer
+	Dim aBorderSingle As New com.sun.star.table.BorderLine
+	Dim aBorderDouble As New com.sun.star.table.BorderLine
+	Dim sCellXLabel As String, sCellsXData As String
+	Dim sCellYLabel As String, sCellsYData As String
+	Dim sCellN As String, sCellR As String
+	
+	oSheets = oDoc.getSheets
+	sSheetName = oDataXRange.getSpreadsheet.getName
+	mNames = oSheets.getElementNames
+	For nI = 0 To UBound (mNames)
+		If mNames (nI) = sSheetName Then
+			nSheetIndex = nI
+		End If
+	Next nI
+	oSheets.insertNewByName (sSheetName &amp; &quot;_correl&quot;, nSheetIndex + 1)
+	oSheet = oSheets.getByName (sSheetName &amp; &quot;_correl&quot;)
+	
+	nN = oDataXRange.getRows.getCount - 1
+	sCellXLabel = fnGetRangeName (oDataXRange.getCellByPosition (0, 0))
+	sCellsXData = fnGetRangeName (oDataXRange.getCellRangeByPosition (0, 1, 0, nN))
+	sCellYLabel = fnGetRangeName (oDataYRange.getCellByPosition (0, 0))
+	sCellsYData = fnGetRangeName (oDataYRange.getCellRangeByPosition (0, 1, 0, nN))
+	
+	&apos; Obtains the format parameters for the report.
+	nFormatN = fnQueryFormat (oDoc, &quot;#,##0&quot;)
+	nFormatF = fnQueryFormat (oDoc, &quot;#,###.000&quot;)
+	nFormatP = fnQueryFormat (oDoc, &quot;[&lt;0.01]#.000&quot;&quot;**&quot;&quot;;[&lt;0.05]#.000&quot;&quot;*&quot;&quot;;#.000&quot;)
+	
+	aBorderSingle.OuterLineWidth = 2
+	aBorderDouble.OuterLineWidth = 2
+	aBorderDouble.InnerLineWidth = 2
+	aBorderDouble.LineDistance = 2
+	
+	&apos; Sets the column widths of the report.
+	oColumns = oSheet.getColumns
+	oColumns.getByIndex (0).setPropertyValue (&quot;Width&quot;, 3060)
+	oColumns.getByIndex (1).setPropertyValue (&quot;Width&quot;, 3060)
+	oColumns.getByIndex (2).setPropertyValue (&quot;Width&quot;, 2080)
+	oColumns.getByIndex (3).setPropertyValue (&quot;Width&quot;, 2080)
+	oColumns.getByIndex (4).setPropertyValue (&quot;Width&quot;, 2080)
+	
+	nRow = -2
+	
+	&apos; Correlation
+	nRow = nRow + 2
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Pearson’s Correlation&quot;)
+	oCell.setPropertyValue (&quot;CellStyle&quot;, &quot;Result2&quot;)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, 4, nRow)
+	oCells.merge (True)
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;X&quot;)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	oCell.setString (&quot;Y&quot;)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	oCell.setString (&quot;N&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (3, nRow)
+	oCell.setString (&quot;r&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (4, nRow)
+	oCell.setString (&quot;p&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	
+	&apos; The test result.
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	sFormula = &quot;=&quot; &amp; sCellXLabel
+	oCell.setFormula (sFormula)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	sFormula = &quot;=&quot; &amp; sCellYLabel
+	oCell.setFormula (sFormula)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	sFormula = &quot;=COUNT(&quot; &amp; sCellsXData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	sCellN = fnGetLocalRangeName (oCell)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatN)
+	oCell = oSheet.getCellByPosition (3, nRow)
+	sFormula = &quot;=CORREL(&quot; &amp; sCellsXData &amp; &quot;;&quot; &amp; sCellsYData &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	sCellR = fnGetLocalRangeName (oCell)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	oCell = oSheet.getCellByPosition (4, nRow)
+	sFormula = &quot;=TDIST(&quot; &amp; sCellR &amp; &quot;*SQRT((&quot; &amp; sCellN &amp; &quot;-2)/(1-&quot; &amp; sCellR &amp; &quot;*&quot; &amp; sCellR &amp; &quot;))&quot; &amp; &quot;;&quot; &amp; sCellN &amp; &quot;-2;2)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatP)
+	
+	&apos; The foot notes of the test.
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Note: *: p&lt;.05, **: p&lt;.01&quot; &amp; Chr (10) &amp; _
+		&quot;H0: ρ=0 (the populations of the two groups are irrelavent).&quot; &amp; Chr (10) &amp; _
+		&quot;H1: ρ≠0 (the populations of the two groups are relevant) if the probability (p) is small enough.&quot;)
+	oCell.setPropertyValue (&quot;IsTextWrapped&quot;, True)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, 4, nRow)
+	oCells.merge (True)
+	sNotes = oCell.getString
+	oCursor = oCell.createTextCursor
+	nPos = InStr (sNotes, &quot;p&lt;&quot;)
+	Do While nPos &lt;&gt; 0
+		oCursor.gotoStart (False)
+		oCursor.goRight (nPos - 1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		nPos = InStr (nPos + 1, sNotes, &quot;p&lt;&quot;)
+	Loop
+	nPos = InStr (sNotes, &quot;(p)&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	nPos = InStr (sNotes, &quot;ρ&quot;)
+	Do While nPos &lt;&gt; 0
+		oCursor.gotoStart (False)
+		oCursor.goRight (nPos - 1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		nPos = InStr (nPos + 1, sNotes, &quot;ρ&quot;)
+	Loop
+	nPos = InStr (sNotes, &quot;H0&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos - 1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	nPos = InStr (sNotes, &quot;H1&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos - 1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	
+	&apos; Draws the table borders.
+	oCells = oSheet.getCellByPosition (0, nRow - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellByPosition (1, nRow - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellRangeByPosition (2, nRow - 2, 4, nRow - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellByPosition (0, nRow - 1)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	oCells = oSheet.getCellByPosition (1, nRow - 1)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	oCells = oSheet.getCellRangeByPosition (2, nRow - 1, 4, nRow - 1)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+End Sub
+</script:module>

@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="9Utils" script:language="StarBasic">&apos; Copyright (c) 2016 imacat.
+&apos; 
+&apos; Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+&apos; you may not use this file except in compliance with the License.
+&apos; You may obtain a copy of the License at
+&apos; 
+&apos;     http://www.apache.org/licenses/LICENSE-2.0
+&apos; 
+&apos; Unless required by applicable law or agreed to in writing, software
+&apos; distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+&apos; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+&apos; See the License for the specific language governing permissions and
+&apos; limitations under the License.
+
+&apos; 9Utils: The utility macros.
+&apos;   by imacat &lt;imacat@mail.imacat.idv.tw&gt;, 2016-08-10
+
+Option Explicit
+
+&apos; fnCheckRangeName: Checks the range name and returns the range when
+&apos;                   found, or null when not found.
+Function fnCheckRangeName (oDoc As Object, sRangeName As String) As Object
+	On Error Goto ErrorHandler
+	Dim oController As Object, oSheet As Object
+	Dim nPos As Integer, sSheetName As String, oRange As Object
+	
+	oController = oDoc.getCurrentController
+	nPos = InStr (sRangeName, &quot;.&quot;)
+	If nPos = 0 Then
+		oSheet = oController.getActiveSheet
+	Else
+		sSheetName = Left (sRangeName, nPos - 1)
+		If Left (sSheetName, 1) = &quot;$&quot; Then
+			sSheetName = Right (sSheetName, Len (sSheetName) - 1)
+		End If
+		oSheet = oDoc.getSheets.getByName (sSheetName)
+	End If
+	fnCheckRangeName = oSheet.getCellRangeByName (sRangeName)
+	
+	ErrorHandler:
+End Function
+
+&apos; fnQueryFormat: Returns the index of the number format, and creates
+&apos;                the number format if required.
+Function fnQueryFormat (oDoc As Object, sFormat As String) As Integer
+	Dim oFormats As Object, nIndex As Integer
+	Dim aLocale As New com.sun.star.lang.Locale
+	
+	oFormats = oDoc.getNumberFormats
+	nIndex = oFormats.queryKey (sFormat, aLocale, True)
+	If nIndex = -1 Then
+		oFormats.addNew (sFormat, aLocale)
+		nIndex = oFormats.queryKey (sFormat, aLocale, True)
+	End If
+	fnQueryFormat = nIndex
+End Function
+
+&apos; fnGetRangeName: Obtains the name of a spreadsheet cell range
+Function fnGetRangeName (oRange As Object) As String
+	Dim nPos As Integer, sName As String
+	
+	sName = oRange.getPropertyValue (&quot;AbsoluteName&quot;)
+	nPos = InStr (sName, &quot;$&quot;)
+	Do While nPos &lt;&gt; 0
+		sName = Left (sName, nPos - 1) &amp; Right (sName, Len (sName) - nPos)
+		nPos = InStr (sName, &quot;$&quot;)
+	Loop
+	fnGetRangeName = sName
+End Function
+
+&apos; fnGetLocalRangeName: Obtains the name of a local spreadsheet cell range
+Function fnGetLocalRangeName (oRange As Object) As String
+	Dim nPos As Integer, sName As String
+	
+	sName = fnGetRangeName (oRange)
+	nPos = InStr (sName, &quot;.&quot;)
+	If nPos &lt;&gt; 0 Then
+		sName = Right (sName, Len (sName) - nPos)
+	End If
+	fnGetLocalRangeName = sName
+End Function
+
+&apos; fnSpecifyData: Specifies the data
+Function fnSpecifyData (oRange As Object, sPrompt1 As String, sPrompt2 As String) As Object
+	Dim mLabels (oRange.getColumns.getCount - 1) As String
+	Dim nI As Integer, mSelected (0) As Integer
+	Dim oDialog As Object, oTextModel As Object
+	Dim oListModel1 As object, oListModel2 As Object
+	Dim nResult As Integer, nColumn As Integer, mRanges (1) As Object
+	
+	For nI = 0 To oRange.getColumns.getCount - 1
+		mLabels (nI) = oRange.getCellByPosition (nI, 0).getString
+	Next nI
+	
+	&apos; Runs the dialog
+	oDialog = CreateUnoDialog (DialogLibraries.StatTool.Dlg2SpecData)
+	oTextModel = oDialog.getControl (&quot;txtPrompt1&quot;).getModel
+	oTextModel.setPropertyValue (&quot;Label&quot;, sPrompt1)
+	oListModel1 = oDialog.getControl (&quot;lstData1&quot;).getModel
+	oListModel1.setPropertyValue (&quot;StringItemList&quot;, mLabels)
+	mSelected (0) = 0
+	oListModel1.setPropertyValue (&quot;SelectedItems&quot;, mSelected)
+	oTextModel = oDialog.getControl (&quot;txtPrompt2&quot;).getModel
+	oTextModel.setPropertyValue (&quot;Label&quot;, sPrompt2)
+	oListModel2 = oDialog.getControl (&quot;lstData2&quot;).getModel
+	oListModel2.setPropertyValue (&quot;StringItemList&quot;, mLabels)
+	mSelected (0) = 1
+	oListModel2.setPropertyValue (&quot;SelectedItems&quot;, mSelected)
+	
+	nResult = oDialog.execute
+	oDialog.dispose
+	
+	&apos; Cancelled
+	If nResult = 0 Then
+		Exit Function
+	End If
+	
+	nColumn = oListModel1.getPropertyValue (&quot;SelectedItems&quot;) (0)
+	mRanges (0) = oRange.getCellRangeByPosition ( _
+		nColumn, 0, nColumn, oRange.getRows.getCount - 1)
+	nColumn = oListModel2.getPropertyValue (&quot;SelectedItems&quot;) (0)
+	mRanges (1) = oRange.getCellRangeByPosition ( _
+		nColumn, 0, nColumn, oRange.getRows.getCount - 1)
+	fnSpecifyData = mRanges
+End Function
+
+&apos; fnAskDataRange: Asks the user for the data range, or null when
+&apos;                 the user cancelled
+Function fnAskDataRange (oDoc As Object) As Object
+	Dim oRange As Object
+	Dim oDialog As Object, nResult As Integer
+	Dim oTextModel As Object, oEditModel As Object
+	Dim sPrompt As String, sCellsData As String
+	
+	oRange = fnFindActiveDataRange (oDoc)
+	If IsNull (oRange) Then
+		sCellsData = &quot;&quot;
+	Else
+		sCellsData = oRange.getPropertyValue (&quot;AbsoluteName&quot;)
+	End If
+	sPrompt = &quot;&amp;27.Dlg1AskRange.txtPrompt.Label&quot;
+	
+	&apos; Loop until we finds good data
+	Do While sPrompt &lt;&gt; &quot;&quot;
+		&apos; Runs the dialog
+		oDialog = CreateUnoDialog (DialogLibraries.StatTool.Dlg1AskRange)
+		oTextModel = oDialog.getControl (&quot;txtPrompt&quot;).getModel
+		oTextModel.setPropertyValue (&quot;Label&quot;, sPrompt)
+		oEditModel = oDialog.getControl (&quot;edtCellsData&quot;).getModel
+		oEditModel.setPropertyValue (&quot;Text&quot;, sCellsData)
+		
+		nResult = oDialog.execute
+		oDialog.dispose
+		
+		&apos; Cancelled
+		If nResult = 0 Then
+			Exit Function
+		End If
+		
+		sCellsData = oEditModel.getPropertyValue (&quot;Text&quot;)
+		If sCellsData = &quot;&quot; Then
+			sPrompt = &quot;&amp;27.Dlg1AskRange.txtPrompt.Label&quot;
+		Else
+			oRange = fnCheckRangeName (oDoc, sCellsData)
+			If IsNull (oRange) Then
+				sPrompt = &quot;&amp;35.Dlg1AskRange.txtPrompt.LabelNotExists&quot;
+			Else
+				If oRange.getRows.getCount &lt; 2 Or oRange.getColumns.getCount &lt; 2 Then
+					sPrompt = &quot;&amp;36.Dlg1AskRange.txtPrompt.LabelTooSmall&quot;
+				Else
+					sPrompt = &quot;&quot;
+					oDoc.getCurrentController.select (oRange)
+					fnAskDataRange = oRange
+					Exit Function
+				End If
+			End If
+		End If
+	Loop
+End Function
+
+&apos; fnFindActiveDataRange: Finds the selected data range.
+Function fnFindActiveDataRange (oDoc)
+	Dim oSelection As Object, nI As Integer
+	Dim oRanges As Object, oRange As Object
+	Dim aCellAddress As New com.sun.star.table.CellAddress
+	Dim aRangeAddress As New com.sun.star.table.CellRangeAddress
+	
+	oSelection = oDoc.getCurrentSelection
+	
+	&apos; Some data ranges are already selected.
+	If Not oSelection.supportsService (&quot;com.sun.star.sheet.SheetCell&quot;) Then
+		&apos; Takes the first selection in multiple selections
+		If oSelection.supportsService (&quot;com.sun.star.sheet.SheetCellRanges&quot;) Then
+			fnFindActiveDataRange = oSelection.getByIndex (0)
+		&apos; The only selection
+		Else
+			fnFindActiveDataRange = oSelection
+		End If
+		Exit Function
+	End If
+	
+	&apos; Finds the data range containing the single active cell
+	aCellAddress = oSelection.getCellAddress
+	oRanges = oSelection.getSpreadsheet.queryContentCells ( _
+		com.sun.star.sheet.CellFlags.VALUE _
+		+ com.sun.star.sheet.CellFlags.DATETIME _
+		+ com.sun.star.sheet.CellFlags.STRING _
+		+ com.sun.star.sheet.CellFlags.FORMULA)
+	For nI = 0 To oRanges.getCount - 1
+		oRange = oRanges.getByIndex (nI)
+		aRangeAddress = oRange.getRangeAddress
+		If 		aRangeAddress.StartRow &lt;= aCellAddress.Row _
+				And aRangeAddress.EndRow &gt;= aCellAddress.Row _
+				And aRangeAddress.StartColumn &lt;= aCellAddress.Column _
+				And aRangeAddress.EndColumn &gt;= aCellAddress.Column Then
+			oDoc.getCurrentController.select (oRange)
+			fnFindActiveDataRange = oRange
+			Exit Function
+		End If
+	Next nI
+	&apos; Not in a data cell range
+End Function
+</script:module>

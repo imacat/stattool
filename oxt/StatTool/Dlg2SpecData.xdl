@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dlg:window PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "dialog.dtd">
+<dlg:window xmlns:dlg="http://openoffice.org/2000/dialog" xmlns:script="http://openoffice.org/2000/script" dlg:id="Dlg2SpecData" dlg:left="188" dlg:top="92" dlg:width="95" dlg:height="80" dlg:help-text="&amp;0.Dlg2SpecData.HelpText" dlg:closeable="true" dlg:moveable="true" dlg:title="&amp;1.Dlg2SpecData.Title">
+ <dlg:bulletinboard>
+  <dlg:text dlg:id="txtPrompt1" dlg:tab-index="0" dlg:left="5" dlg:top="5" dlg:width="85" dlg:height="10" dlg:help-text="&amp;2.Dlg2SpecData.txtPrompt1.HelpText" dlg:value="&amp;3.Dlg2SpecData.txtPrompt1.Label1CorRel"/>
+  <dlg:menulist dlg:id="lstData1" dlg:tab-index="1" dlg:left="5" dlg:top="15" dlg:width="85" dlg:height="10" dlg:help-text="&amp;4.Dlg2SpecData.lstData1.HelpText" dlg:spin="true"/>
+  <dlg:text dlg:id="txtPrompt2" dlg:tab-index="2" dlg:left="5" dlg:top="30" dlg:width="85" dlg:height="10" dlg:help-text="&amp;5.Dlg2SpecData.txtPrompt2.HelpText" dlg:value="&amp;6.Dlg2SpecData.txtPrompt2.Label1CorRel"/>
+  <dlg:menulist dlg:id="lstData2" dlg:tab-index="3" dlg:left="5" dlg:top="40" dlg:width="85" dlg:height="10" dlg:help-text="&amp;7.Dlg2SpecData.lstData2.HelpText" dlg:spin="true"/>
+  <dlg:button dlg:id="btnCancel" dlg:tab-index="4" dlg:left="5" dlg:top="60" dlg:width="40" dlg:height="15" dlg:help-text="&amp;8.Dlg2SpecData.btnCancel.HelpText" dlg:button-type="cancel"/>
+  <dlg:button dlg:id="btnOK" dlg:tab-index="5" dlg:left="50" dlg:top="60" dlg:width="40" dlg:height="15" dlg:help-text="&amp;9.Dlg2SpecData.btnOK.HelpText" dlg:default="true" dlg:button-type="ok"/>
+ </dlg:bulletinboard>
+</dlg:window>

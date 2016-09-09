@@ -1,0 +1,865 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="5Chi2GoF" script:language="StarBasic">&apos; Copyright (c) 2016 imacat.
+&apos; 
+&apos; Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+&apos; you may not use this file except in compliance with the License.
+&apos; You may obtain a copy of the License at
+&apos; 
+&apos;     http://www.apache.org/licenses/LICENSE-2.0
+&apos; 
+&apos; Unless required by applicable law or agreed to in writing, software
+&apos; distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+&apos; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+&apos; See the License for the specific language governing permissions and
+&apos; limitations under the License.
+
+&apos; 5Chi2GoF: The macros to for generating the report of Chi-square goodness of fit
+&apos;   by imacat &lt;imacat@mail.imacat.idv.tw&gt;, 2016-09-05
+
+Option Explicit
+
+&apos; subRunChi2GoodnessOfFit: Runs the chi-square goodness of fit.
+Sub subRunChi2GoodnessOfFit As Object
+	Dim oRange As Object
+	Dim oSheets As Object, sSheetName As String
+	Dim oSheet As Object, mRanges As Object
+	Dim sExisted As String, nResult As Integer
+	
+	DialogLibraries.loadLibrary &quot;StatTool&quot;
+	
+	&apos; Asks the user for the data range
+	oRange = fnAskDataRange (ThisComponent)
+	If IsNull (oRange) Then
+		Exit Sub
+	End If
+	
+	&apos; Specifies the data
+	mRanges = fnSpecifyData (oRange, _
+		&quot;&amp;12.Dlg2SpecData.txtPrompt1.Label5Chi2GoF&quot;, _
+		&quot;&amp;13.Dlg2SpecData.txtPrompt2.Label5Chi2GoF&quot;)
+	If IsNull (mRanges) Then
+		Exit Sub
+	End If
+	
+	&apos; Checks the existing report
+	oSheets = ThisComponent.getSheets
+	sSheetName = oRange.getSpreadsheet.getName
+	If oSheets.hasByName (sSheetName &amp; &quot;_chi2&quot;) Then
+		sExisted = &quot;Spreadsheet &quot;&quot;&quot; &amp; sSheetName &amp; &quot;_chi2&quot;&quot; exists.  Overwrite?&quot;
+		nResult = MsgBox (sExisted, MB_YESNO + MB_DEFBUTTON2 + MB_ICONQUESTION)
+		If nResult = IDNO Then
+			Exit Sub
+		End If
+		&apos; Drops the existing report
+		oSheets.removeByname (sSheetName &amp; &quot;_chi2&quot;)
+	End If
+	
+	&apos; Reports the chi-square goodness of fit
+	subReportChi2GoodnessOfFit (ThisComponent, mRanges (0), mRanges (1))
+	oSheet = oSheets.getByName (sSheetName &amp; &quot;_chi2&quot;)
+	
+	&apos; Makes the report sheet active.
+	ThisComponent.getCurrentController.setActiveSheet (oSheet)
+End Sub
+
+&apos; subReportChi2GoodnessOfFit: Reports the chi-square goodness of fit
+Sub subReportChi2GoodnessOfFit (oDoc As Object, oColumnColumn As Object, oRowColumn As Object)
+	Dim oSheets As Object, sSheetName As String
+	Dim nI As Integer, nJ As Integer, nJ1 As Integer, nJ2 As Integer
+	Dim mNames () As String, nSheetIndex As Integer
+	Dim oSheet As Object, oColumns As Object, nRow As Integer, nStartRow As Integer
+	Dim oCell As Object, oCells As Object, oCursor As Object
+	Dim nN As Integer, sFormula As String
+	Dim sNotes As String, nPos As Integer
+	Dim nFormatN As Integer, nFormatF As Integer, nFormatP As Integer, nFormatPct As Integer
+	Dim aBorderSingle As New com.sun.star.table.BorderLine
+	Dim aBorderDouble As New com.sun.star.table.BorderLine
+	
+	Dim sCellsJData As String, sCellsIData As String
+	Dim sLabel As String, sLabelsColumn As String, sLabelsRow As String
+	Dim nGroups As Integer, nEvents As Integer
+	Dim mCellLabelColomn () As String, mCellLabelRow () As String
+	Dim mCellNJ () As String, mCellNI () As String, mCellPI () As String
+	Dim mCellFrequency (0, 0) As String, mCellProportion (0, 0) As String
+	Dim sCellN As String
+	
+	Dim sCell As String, sCells As String
+	Dim sCellsRow As String, sCellsColumn As String
+	Dim sCellChi2 As String, sCellDF As String
+	Dim sSE2 AS String, nTotalColumns As Integer
+	
+	oSheets = oDoc.getSheets
+	sSheetName = oColumnColumn.getSpreadsheet.getName
+	mNames = oSheets.getElementNames
+	For nI = 0 To UBound (mNames)
+		If mNames (nI) = sSheetName Then
+			nSheetIndex = nI
+		End If
+	Next nI
+	oSheets.insertNewByName (sSheetName &amp; &quot;_chi2&quot;, nSheetIndex + 1)
+	oSheet = oSheets.getByName (sSheetName &amp; &quot;_chi2&quot;)
+	
+	sCellsJData = fnGetRangeName (oColumnColumn.getCellRangeByPosition (0, 1, 0, oColumnColumn.getRows.getCount - 1))
+	sCellsIData = fnGetRangeName (oRowColumn.getCellRangeByPosition (0, 1, 0, oRowColumn.getRows.getCount - 1))
+	
+	&apos; Counts the number of groups and events
+	sLabelsColumn = &quot; &quot;
+	sLabelsRow = &quot; &quot;
+	nGroups = 0
+	nEvents = 0
+	For nRow = 1 To oColumnColumn.getRows.getCount - 1
+		sLabel = oColumnColumn.getCellByPosition (0, nRow).getString
+		If InStr (sLabelsColumn, &quot; &quot; &amp; sLabel &amp; &quot; &quot;) = 0 Then
+			sLabelsColumn = sLabelsColumn &amp; sLabel &amp; &quot; &quot;
+			nGroups = nGroups + 1
+		End If
+		sLabel = oRowColumn.getCellByPosition (0, nRow).getString
+		If InStr (sLabelsRow, &quot; &quot; &amp; sLabel &amp; &quot; &quot;) = 0 Then
+			sLabelsRow = sLabelsRow &amp; sLabel &amp; &quot; &quot;
+			nEvents = nEvents + 1
+		End If
+	Next nRow
+	
+	ReDim mCellLabelColomn (nGroups - 1) As String, mCellLabelRow (nEvents - 1) As String
+	ReDim mCellNJ (nGroups - 1) As String, mCellNI (nEvents - 1) As String
+	ReDim mCellPI (nEvents - 1) As String
+	ReDim mCellFrequency (nGroups - 1, nEvents - 1) As String
+	ReDim mCellProportion (nGroups - 1, nEvents - 1) As String
+	
+	&apos; Collects the group and event labels
+	sLabelsColumn = &quot; &quot;
+	sLabelsRow = &quot; &quot;
+	nJ = 0
+	nI = 0
+	For nRow = 1 To oColumnColumn.getRows.getCount - 1
+		oCell = oColumnColumn.getCellByPosition (0, nRow)
+		sLabel = oCell.getString
+		If InStr (sLabelsColumn, &quot; &quot; &amp; sLabel &amp; &quot; &quot;) = 0 Then
+			sLabelsColumn = sLabelsColumn &amp; sLabel &amp; &quot; &quot;
+			mCellLabelColomn (nJ) = fnGetRangeName (oCell)
+			nJ = nJ + 1
+		End If
+		oCell = oRowColumn.getCellByPosition (0, nRow)
+		sLabel = oCell.getString
+		If InStr (sLabelsRow, &quot; &quot; &amp; sLabel &amp; &quot; &quot;) = 0 Then
+			sLabelsRow = sLabelsRow &amp; sLabel &amp; &quot; &quot;
+			mCellLabelRow (nI) = fnGetRangeName (oCell)
+			nI = nI + 1
+		End If
+	Next nRow
+	
+	&apos; Obtains the format parameters for the report.
+	nFormatN = fnQueryFormat (oDoc, &quot;#,##0&quot;)
+	nFormatF = fnQueryFormat (oDoc, &quot;#,###.000&quot;)
+	nFormatP = fnQueryFormat (oDoc, &quot;[&lt;0.01]#.000&quot;&quot;**&quot;&quot;;[&lt;0.05]#.000&quot;&quot;*&quot;&quot;;#.000&quot;)
+	nFormatPct = fnQueryFormat (oDoc, &quot;0.0%&quot;)
+	
+	aBorderSingle.OuterLineWidth = 2
+	aBorderDouble.OuterLineWidth = 2
+	aBorderDouble.InnerLineWidth = 2
+	aBorderDouble.LineDistance = 2
+	
+	&apos; Sets the column widths of the report.
+	nTotalColumns = nGroups + 2
+	If nEvents = 2 Then
+		If nTotalColumns &lt; 5 Then
+			nTotalColumns = 5
+		End If
+	Else
+		If nTotalColumns &lt; 6 Then
+			nTotalColumns = 6
+		End If
+	End If
+	oColumns = oSheet.getColumns
+	For nJ = 0 To nTotalColumns - 1
+		oColumns.getByIndex (nJ).setPropertyValue (&quot;Width&quot;, 3060)
+	Next nJ
+	
+	nRow = -2
+	
+	&apos; Group description
+	nRow = nRow + 2
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Crosstabulation&quot;)
+	oCell.setPropertyValue (&quot;CellStyle&quot;, &quot;Result2&quot;)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, nGroups + 1, nRow)
+	oCells.merge (True)
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Event&quot;)
+	For nJ = 0 To nGroups - 1
+		oCell = oSheet.getCellByPosition (nJ + 1, nRow)
+		sFormula = &quot;=&quot; &amp; mCellLabelColomn (nJ)
+		oCell.setFormula (sFormula)
+		mCellLabelColomn (nJ) = fnGetLocalRangeName (oCell)
+	Next nJ
+	oCell = oSheet.getCellByPosition (nGroups + 1, nRow)
+	oCell.setString (&quot;Total&quot;)
+	
+	&apos; Shows each event
+	nRow = nRow - 1
+	For nI = 0 To nEvents - 1
+		nRow = nRow + 2
+		oCell = oSheet.getCellByPosition (0, nRow)
+		sFormula = &quot;=&quot; &amp; mCellLabelRow (nI)
+		oCell.setFormula (sFormula)
+		oCell.setPropertyValue (&quot;VertJustify&quot;, com.sun.star.table.CellVertJustify.TOP)
+		mCellLabelRow (nI) = fnGetLocalRangeName (oCell)
+		oCells = oSheet.getCellRangeByPosition (0, nRow, 0, nRow + 1)
+		oCells.merge (True)
+		For nJ = 0 To nGroups - 1
+			oCell = oSheet.getCellByPosition (1 + nJ, nRow)
+		    sFormula = &quot;=COUNTIFS(&quot; &amp; sCellsJData &amp; &quot;;&quot; &amp; mCellLabelColomn (nJ) &amp; &quot;;&quot; &amp; sCellsIData &amp; &quot;;&quot; &amp; mCellLabelRow (nI) &amp; &quot;)&quot;
+		    oCell.setFormula (sFormula)
+			oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatN)
+			mCellFrequency (nJ, nI) = fnGetLocalRangeName (oCell)
+		Next nJ
+		oCell = oSheet.getCellByPosition (1 + nGroups, nRow)
+		sCells = fnGetLocalRangeName (oSheet.getCellRangeByPosition (1, nRow, nGroups, nRow))
+		sFormula = &quot;=SUM(&quot; &amp; sCells &amp; &quot;)&quot;
+		oCell.setFormula (sFormula)
+		oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatN)
+		mCellNI (nI) = fnGetLocalRangeName (oCell)
+	Next nI
+	&apos; Shows the total
+	nRow = nRow + 2
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Total&quot;)
+	oCell.setPropertyValue (&quot;VertJustify&quot;, com.sun.star.table.CellVertJustify.TOP)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, 0, nRow + 1)
+	oCells.merge (True)
+	For nJ = 0 To nGroups - 1
+		oCell = oSheet.getCellByPosition (1 + nJ, nRow)
+		sFormula = &quot;&quot;
+		For nI = 0 To nEvents - 1
+		    sFormula = sFormula &amp; &quot;+&quot; &amp; mCellFrequency (nJ, nI)
+		Next nI
+		sFormula = &quot;=&quot; &amp; Right (sFormula, Len (sFormula) - 1)
+		oCell.setFormula (sFormula)
+		oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatN)
+		mCellNJ (nJ) = fnGetLocalRangeName (oCell)
+	Next nJ
+	oCell = oSheet.getCellByPosition (1 + nGroups, nRow)
+	sCells = fnGetLocalRangeName (oSheet.getCellRangeByPosition (1, nRow, nGroups, nRow))
+	sFormula = &quot;&quot;
+	For nI = 0 To nEvents - 1
+	    sFormula = sFormula &amp; &quot;+&quot; &amp; mCellNI (nI)
+	Next nI
+	sFormula = &quot;=&quot; &amp; Right (sFormula, Len (sFormula) - 1)
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatN)
+	sCellN = fnGetLocalRangeName (oCell)
+	&apos; Shows the proportions
+	nRow = nRow - nEvents * 2 - 1
+	For nI = 0 To nEvents - 1
+	    nRow = nRow + 2
+        For nJ = 0 To nGroups - 1
+			oCell = oSheet.getCellByPosition (1 + nJ, nRow)
+		    sFormula = &quot;=&quot; &amp; mCellFrequency (nJ, nI) &amp; &quot;/&quot; &amp; mCellNJ (nJ)
+		    oCell.setFormula (sFormula)
+			oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatPct)
+			mCellProportion (nJ, nI) = fnGetLocalRangeName (oCell)
+		Next nJ
+		oCell = oSheet.getCellByPosition (1 + nGroups, nRow)
+	    sFormula = &quot;=&quot; &amp; mCellNI (nI) &amp; &quot;/&quot; &amp; sCellN
+	    oCell.setFormula (sFormula)
+		oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatPct)
+		mCellPI (nI) = fnGetLocalRangeName (oCell)
+	Next nI
+	&apos; Shows the total
+	nRow = nRow + 2
+	For nJ = 0 To nGroups - 1
+		oCell = oSheet.getCellByPosition (1 + nJ, nRow)
+		sFormula = &quot;&quot;
+		For nI = 0 To nEvents - 1
+		    sFormula = sFormula &amp; &quot;+&quot; &amp; mCellProportion (nJ, nI)
+		Next nI
+		sFormula = &quot;=&quot; &amp; Right (sFormula, Len (sFormula) - 1)
+		oCell.setFormula (sFormula)
+		oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatPct)
+	Next nJ
+	oCell = oSheet.getCellByPosition (1 + nGroups, nRow)
+	sCells = fnGetLocalRangeName (oSheet.getCellRangeByPosition (1, nRow, nGroups, nRow))
+	sFormula = &quot;&quot;
+	For nI = 0 To nEvents - 1
+	    sFormula = sFormula &amp; &quot;+&quot; &amp; mCellPI (nI)
+	Next nI
+	sFormula = &quot;=&quot; &amp; Right (sFormula, Len (sFormula) - 1)
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatPct)
+	
+	oCells = oSheet.getCellRangeByPosition (1, nRow - nEvents * 2 - 1, nGroups, nRow - nEvents * 2 - 1)
+	sCellsRow = fnGetLocalRangeName (oCells)
+	oCells = oSheet.getCellRangeByPosition (1, nRow - nEvents * 2 - 1, 1, nRow - 2)
+	sCellsColumn = fnGetLocalRangeName (oCells)
+	
+	&apos; Draws the table borders.
+	oCells = oSheet.getCellByPosition (0, nRow - nEvents * 2 - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellRangeByPosition (1, nRow  - nEvents * 2 - 2, nGroups + 1, nRow - nEvents * 2 - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellRangeByPosition (0, nRow - nEvents * 2 - 1, 0, nRow - 2)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellByPosition (0, nRow - 1)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	oCells = oSheet.getCellRangeByPosition (1, nRow - 1, nGroups + 1, nRow - 1)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellRangeByPosition (1, nRow, nGroups + 1, nRow)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	
+	&apos; The Chi-square test
+	nRow = nRow + 2
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Chi-Square Test&quot;)
+	oCell.setPropertyValue (&quot;CellStyle&quot;, &quot;Result2&quot;)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, 3, nRow)
+	oCells.merge (True)
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Test&quot;)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	oCell.setString (&quot;χ2&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, 33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	oCell.setString (&quot;df&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCell = oSheet.getCellByPosition (3, nRow)
+	oCell.setString (&quot;p&quot;)
+	oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+	oCursor = oCell.createTextCursor
+	oCursor.gotoStart (False)
+	oCursor.gotoEnd (True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	
+	&apos; The test result.
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Pearson’s Chi-Square&quot;)
+	oCell = oSheet.getCellByPosition (1, nRow)
+	sFormula = &quot;&quot;
+	For nI = 0 To nEvents - 1
+	    For nJ = 0 To nGroups - 1
+	        sFormula = sFormula &amp; &quot;+POWER(&quot; &amp; mCellFrequency (nJ, nI) &amp; &quot;;2)/(&quot; &amp; mCellNI (nI) &amp; &quot;*&quot; &amp; mCellNJ (nJ) &amp; &quot;)&quot;
+	    Next nJ
+	Next nI
+	sFormula = &quot;=&quot; &amp; sCellN &amp; &quot;*(&quot; &amp; Right (sFormula, Len (sFormula) - 1) &amp; &quot;-1)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+	sCellChi2 = fnGetLocalRangeName (oCell)
+	oCell = oSheet.getCellByPosition (2, nRow)
+	sFormula = &quot;=(COUNT(&quot; &amp; sCellsRow &amp; &quot;)-1)*(COUNT(&quot; &amp; sCellsColumn &amp; &quot;)/2-1)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatN)
+	sCellDF = fnGetLocalRangeName (oCell)
+	oCell = oSheet.getCellByPosition (3, nRow)
+	sFormula = &quot;=CHIDIST(&quot; &amp; sCellChi2 &amp; &quot;;&quot; &amp; sCellDF &amp; &quot;)&quot;
+	oCell.setFormula (sFormula)
+	oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatP)
+	
+	&apos; The foot notes of the test.
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Note: *: p&lt;.05, **: p&lt;.01&quot; &amp; Chr (10) &amp; _
+		&quot;H0: P1=P2=…PN=P (the proportions of the events in each group are the same).&quot; &amp; Chr (10) &amp; _
+		&quot;H1: The above is false (the proportions of the events in each group are different) if the probability (p) is small enough.&quot;)
+	oCell.setPropertyValue (&quot;IsTextWrapped&quot;, True)
+	oCells = oSheet.getCellRangeByPosition (0, nRow, 3, nRow)
+	oCells.merge (True)
+	sNotes = oCell.getString
+	oCursor = oCell.createTextCursor
+	nPos = InStr (sNotes, &quot;p&lt;&quot;)
+	Do While nPos &lt;&gt; 0
+		oCursor.gotoStart (False)
+		oCursor.goRight (nPos - 1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		nPos = InStr (nPos + 1, sNotes, &quot;p&lt;&quot;)
+	Loop
+	nPos = InStr (sNotes, &quot;(p)&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	nPos = InStr (1, sNotes, &quot;P&quot;, 0)
+	Do While nPos &lt;&gt; 0
+		oCursor.gotoStart (False)
+		oCursor.goRight (nPos - 1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		If oCursor.getString &lt;&gt; &quot; &quot; Then
+			oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+			oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		End If
+		nPos = InStr (nPos + 1, sNotes, &quot;P&quot;, 0)
+	Loop
+	nPos = InStr (sNotes, &quot;PN&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	nPos = InStr (sNotes, &quot;H0&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos - 1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	nPos = InStr (sNotes, &quot;H1&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos - 1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	
+	&apos; Draws the table borders.
+	oCells = oSheet.getCellByPosition (0, nRow - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellRangeByPosition (1, nRow - 2, 3, nRow - 2)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+	oCells = oSheet.getCellByPosition (0, nRow - 1)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	oCells = oSheet.getCellRangeByPosition (1, nRow - 1, 3, nRow - 1)
+	oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderSingle)
+	oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	
+	&apos; The posteriori comparison
+	nRow = nRow + 2
+	If nEvents = 2 Then
+		oCell = oSheet.getCellByPosition (0, nRow)
+		oCell.setString (&quot;Posteriori Comparison&quot;)
+		oCell.setPropertyValue (&quot;CellStyle&quot;, &quot;Result2&quot;)
+		oCells = oSheet.getCellRangeByPosition (0, nRow, 4, nRow)
+		oCells.merge (True)
+		nRow = nRow + 1
+		oCell = oSheet.getCellByPosition (0, nRow)
+		oCell.setString (&quot;j1&quot;)
+		oCursor = oCell.createTextCursor
+		oCursor.gotoStart (False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCell = oSheet.getCellByPosition (1, nRow)
+		oCell.setString (&quot;j2&quot;)
+		oCursor = oCell.createTextCursor
+		oCursor.gotoStart (False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCell = oSheet.getCellByPosition (2, nRow)
+		oCell.setString (&quot;Pj1-Pj2&quot;)
+		oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+		oCursor = oCell.createTextCursor
+		oCursor.gotoStart (False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -52)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 34)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -52)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 34)
+		oCell = oSheet.getCellByPosition (3, nRow)
+		oCell.setString (&quot;χ2&quot;)
+		oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+		oCursor = oCell.createTextCursor
+		oCursor.gotoStart (False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.gotoEnd (True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, 33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCell = oSheet.getCellByPosition (4, nRow)
+		oCell.setString (&quot;p&quot;)
+		oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+		oCursor = oCell.createTextCursor
+		oCursor.gotoStart (False)
+		oCursor.gotoEnd (True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	Else
+		oCell = oSheet.getCellByPosition (0, nRow)
+		oCell.setString (&quot;Posteriori Comparison&quot;)
+		oCell.setPropertyValue (&quot;CellStyle&quot;, &quot;Result2&quot;)
+		oCells = oSheet.getCellRangeByPosition (0, nRow, 5, nRow)
+		oCells.merge (True)
+		nRow = nRow + 1
+		oCell = oSheet.getCellByPosition (0, nRow)
+		oCell.setString (&quot;Event&quot;)
+		oCell = oSheet.getCellByPosition (1, nRow)
+		oCell.setString (&quot;j1&quot;)
+		oCursor = oCell.createTextCursor
+		oCursor.gotoStart (False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCell = oSheet.getCellByPosition (2, nRow)
+		oCell.setString (&quot;j2&quot;)
+		oCursor = oCell.createTextCursor
+		oCursor.gotoStart (False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCell = oSheet.getCellByPosition (3, nRow)
+		oCell.setString (&quot;Pj1-Pj2&quot;)
+		oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+		oCursor = oCell.createTextCursor
+		oCursor.gotoStart (False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -52)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 34)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -52)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 34)
+		oCell = oSheet.getCellByPosition (4, nRow)
+		oCell.setString (&quot;χ2&quot;)
+		oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+		oCursor = oCell.createTextCursor
+		oCursor.gotoStart (False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.gotoEnd (True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, 33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCell = oSheet.getCellByPosition (5, nRow)
+		oCell.setString (&quot;p&quot;)
+		oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+		oCursor = oCell.createTextCursor
+		oCursor.gotoStart (False)
+		oCursor.gotoEnd (True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	End If
+	
+	&apos; The comparison between groups
+	nRow = nRow + 1
+	If nEvents = 2 Then
+		For nJ1 = 0 To nGroups - 1
+			oCell = oSheet.getCellByPosition (0, nRow)
+			sFormula = &quot;=&quot; &amp; mCellLabelColomn (nJ1)
+			oCell.setFormula (sFormula)
+			oCell.setPropertyValue (&quot;VertJustify&quot;, com.sun.star.table.CellVertJustify.TOP)
+			oCells = oSheet.getCellRangeByPosition (0, nRow, 0, nRow + (nGroups - 1) - 1)
+			oCells.merge (True)
+			For nJ2 = 0 To nGroups - 1
+				If nJ1 &lt;&gt; nJ2 Then
+					oCell = oSheet.getCellByPosition (1, nRow)
+					sFormula = &quot;=&quot; &amp; mCellLabelColomn (nJ2)
+					oCell.setFormula (sFormula)
+					oCell = oSheet.getCellByPosition (2, nRow)
+					sFormula = &quot;=&quot; &amp; mCellProportion (nJ1, 0) &amp; &quot;-&quot; &amp; mCellProportion (nJ2, 0)
+					oCell.setFormula (sFormula)
+					oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatPct)
+					sCell = fnGetLocalRangeName (oCell)
+					sSE2 = &quot;(&quot; &amp; mCellProportion (nJ1, 0) &amp; &quot;*(1-&quot; &amp; mCellProportion (nJ1, 0) &amp; &quot;))/&quot; &amp; mCellNJ (nJ1) &amp; _
+						&quot;+(&quot; &amp; mCellProportion (nJ2, 0) &amp; &quot;*(1-&quot; &amp; mCellProportion (nJ2, 0) &amp; &quot;))/&quot; &amp; mCellNJ (nJ2)
+					oCell = oSheet.getCellByPosition (3, nRow)
+					sFormula = &quot;=IF(&quot; &amp; sSE2 &amp; &quot;=0;&quot;&quot;(N/A)&quot;&quot;;POWER(&quot; &amp; sCell &amp; &quot;;2)/(&quot; &amp; sSE2 &amp; &quot;))&quot;
+					oCell.setFormula (sFormula)
+					oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+					oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+					sCellChi2 = fnGetLocalRangeName (oCell)
+					oCell = oSheet.getCellByPosition (4, nRow)
+					sFormula = &quot;=IF(&quot; &amp; sSE2 &amp; &quot;=0;&quot;&quot;(N/A)&quot;&quot;;CHIDIST(&quot; &amp; sCellChi2 &amp; &quot;;&quot; &amp; sCellDF &amp; &quot;))&quot;
+					oCell.setFormula (sFormula)
+					oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatP)
+					oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+					nRow = nRow + 1
+				End If
+			Next nJ2
+		Next nJ1
+	Else
+		For nI = 0 To nEvents - 1
+			oCell = oSheet.getCellByPosition (0, nRow)
+			sFormula = &quot;=&quot; &amp; mCellLabelRow (nI)
+			oCell.setFormula (sFormula)
+			oCell.setPropertyValue (&quot;VertJustify&quot;, com.sun.star.table.CellVertJustify.TOP)
+			oCells = oSheet.getCellRangeByPosition (0, nRow, 0, nRow + nGroups * (nGroups - 1) - 1)
+			oCells.merge (True)
+			For nJ1 = 0 To nGroups - 1
+				oCell = oSheet.getCellByPosition (1, nRow)
+				sFormula = &quot;=&quot; &amp; mCellLabelColomn (nJ1)
+				oCell.setFormula (sFormula)
+				oCell.setPropertyValue (&quot;VertJustify&quot;, com.sun.star.table.CellVertJustify.TOP)
+				oCells = oSheet.getCellRangeByPosition (1, nRow, 1, nRow + (nGroups - 1) - 1)
+				oCells.merge (True)
+				For nJ2 = 0 To nGroups - 1
+					If nJ1 &lt;&gt; nJ2 Then
+						oCell = oSheet.getCellByPosition (2, nRow)
+						sFormula = &quot;=&quot; &amp; mCellLabelColomn (nJ2)
+						oCell.setFormula (sFormula)
+						oCell = oSheet.getCellByPosition (3, nRow)
+						sFormula = &quot;=&quot; &amp; mCellProportion (nJ1, nI) &amp; &quot;-&quot; &amp; mCellProportion (nJ2, nI)
+						oCell.setFormula (sFormula)
+						oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatPct)
+						sCell = fnGetLocalRangeName (oCell)
+						sSE2 = &quot;(&quot; &amp; mCellProportion (nJ1, nI) &amp; &quot;*(1-&quot; &amp; mCellProportion (nJ1, nI) &amp; &quot;))/&quot; &amp; mCellNJ (nJ1) &amp; _
+							&quot;+(&quot; &amp; mCellProportion (nJ2, nI) &amp; &quot;*(1-&quot; &amp; mCellProportion (nJ2, nI) &amp; &quot;))/&quot; &amp; mCellNJ (nJ2)
+						oCell = oSheet.getCellByPosition (4, nRow)
+						sFormula = &quot;=IF(&quot; &amp; sSE2 &amp; &quot;=0;&quot;&quot;(N/A)&quot;&quot;;POWER(&quot; &amp; sCell &amp; &quot;;2)/(&quot; &amp; sSE2 &amp; &quot;))&quot;
+						oCell.setFormula (sFormula)
+						oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatF)
+						oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+						sCellChi2 = fnGetLocalRangeName (oCell)
+						oCell = oSheet.getCellByPosition (5, nRow)
+						sFormula = &quot;=IF(&quot; &amp; sSE2 &amp; &quot;=0;&quot;&quot;(N/A)&quot;&quot;;CHIDIST(&quot; &amp; sCellChi2 &amp; &quot;;&quot; &amp; sCellDF &amp; &quot;))&quot;
+						oCell.setFormula (sFormula)
+						oCell.setPropertyValue (&quot;NumberFormat&quot;, nFormatP)
+						oCell.setPropertyValue (&quot;ParaAdjust&quot;, com.sun.star.style.ParagraphAdjust.RIGHT)
+						nRow = nRow + 1
+					End If
+				Next nJ2
+			Next nJ1
+		Next nI
+	End If
+	nRow = nRow - 1
+	
+	&apos; The foot notes of the test.
+	nRow = nRow + 1
+	oCell = oSheet.getCellByPosition (0, nRow)
+	oCell.setString (&quot;Note: *: p&lt;.05, **: p&lt;.01&quot; &amp; Chr (10) &amp; _
+		&quot;H0: Pj1=Pj2 (the proportions of the event in the two groups are the same).&quot; &amp; Chr (10) &amp; _
+		&quot;H1: Pj1≠Pj2 (the proportions of the event in the two groups are different) if the probability (p) is small enough.&quot;)
+	oCell.setPropertyValue (&quot;IsTextWrapped&quot;, True)
+	If nEvents = 2 Then
+		oCells = oSheet.getCellRangeByPosition (0, nRow, 4, nRow)
+	Else
+		oCells = oSheet.getCellRangeByPosition (0, nRow, 5, nRow)
+	End If
+	oCells.merge (True)
+	sNotes = oCell.getString
+	oCursor = oCell.createTextCursor
+	nPos = InStr (sNotes, &quot;p&lt;&quot;)
+	Do While nPos &lt;&gt; 0
+		oCursor.gotoStart (False)
+		oCursor.goRight (nPos - 1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		nPos = InStr (nPos + 1, sNotes, &quot;p&lt;&quot;)
+	Loop
+	nPos = InStr (sNotes, &quot;(p)&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	nPos = InStr (sNotes, &quot;Pj&quot;)
+	Do While nPos &lt;&gt; 0
+		oCursor.gotoStart (False)
+		oCursor.goRight (nPos - 1, False)
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+		oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+		oCursor.collapseToEnd
+		oCursor.goRight (1, True)
+		oCursor.setPropertyValue (&quot;CharEscapement&quot;, -52)
+		oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 34)
+		nPos = InStr (nPos + 1, sNotes, &quot;Pj&quot;)
+	Loop
+	nPos = InStr (sNotes, &quot;H0&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos - 1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	nPos = InStr (sNotes, &quot;H1&quot;)
+	oCursor.gotoStart (False)
+	oCursor.goRight (nPos - 1, False)
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharPosture&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureAsian&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.setPropertyValue (&quot;CharPostureComplex&quot;, com.sun.star.awt.FontSlant.ITALIC)
+	oCursor.collapseToEnd
+	oCursor.goRight (1, True)
+	oCursor.setPropertyValue (&quot;CharEscapement&quot;, -33)
+	oCursor.setPropertyValue (&quot;CharEscapementHeight&quot;, 58)
+	
+	&apos; Draws the table borders.
+	If nEvents = 2 Then
+		nStartRow = nRow - nGroups * (nGroups - 1) - 1
+		oCells = oSheet.getCellByPosition (0, nStartRow)
+		oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+		oCells = oSheet.getCellByPosition (1, nStartRow)
+		oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+		oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+		oCells = oSheet.getCellRangeByPosition (2, nStartRow, 4, nStartRow)
+		oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+		oCells = oSheet.getCellRangeByPosition (1, nStartRow + 1, 1, nRow - 2)
+		oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+		oCells = oSheet.getCellByPosition (0, nRow - 1 - (nGroups - 1) + 1)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+		oCells = oSheet.getCellByPosition (1, nRow - 1)
+		oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+		oCells = oSheet.getCellRangeByPosition (2, nRow - 1, 4, nRow - 1)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	Else
+		nStartRow = nRow - nEvents * nGroups * (nGroups - 1) - 1
+		oCells = oSheet.getCellRangeByPosition (0, nStartRow, 1, nStartRow)
+		oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+		oCells = oSheet.getCellByPosition (2, nStartRow)
+		oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+		oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+		oCells = oSheet.getCellRangeByPosition (3, nStartRow, 5, nStartRow)
+		oCells.setPropertyValue (&quot;TopBorder&quot;, aBorderDouble)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderSingle)
+		oCells = oSheet.getCellRangeByPosition (2, nStartRow + 1, 2, nRow - 2)
+		oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+		oCells = oSheet.getCellByPosition (0, nRow - 1 - nGroups * (nGroups - 1) + 1)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+		oCells = oSheet.getCellByPosition (1, nRow - 1 - (nGroups - 1) + 1)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+		oCells = oSheet.getCellByPosition (2, nRow - 1)
+		oCells.setPropertyValue (&quot;RightBorder&quot;, aBorderSingle)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+		oCells = oSheet.getCellRangeByPosition (3, nRow - 1, 5, nRow - 1)
+		oCells.setPropertyValue (&quot;BottomBorder&quot;, aBorderDouble)
+	End If
+End Sub
+</script:module>

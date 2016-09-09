@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dlg:window PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "dialog.dtd">
+<dlg:window xmlns:dlg="http://openoffice.org/2000/dialog" xmlns:script="http://openoffice.org/2000/script" dlg:id="Dlg1AskRange" dlg:left="188" dlg:top="92" dlg:width="95" dlg:height="65" dlg:help-text="&amp;16.Dlg1AskRange.HelpText" dlg:closeable="true" dlg:moveable="true" dlg:title="&amp;17.Dlg1AskRange.Title">
+ <dlg:bulletinboard>
+  <dlg:text dlg:id="txtPrompt" dlg:tab-index="0" dlg:left="5" dlg:top="5" dlg:width="85" dlg:height="15" dlg:help-text="&amp;26.Dlg1AskRange.txtPrompt.HelpText" dlg:value="&amp;27.Dlg1AskRange.txtPrompt.Label"/>
+  <dlg:textfield dlg:id="edtCellsData" dlg:tab-index="1" dlg:left="5" dlg:top="25" dlg:width="85" dlg:height="15" dlg:help-text="&amp;30.Dlg1AskRange.edtCellsData.HelpText"/>
+  <dlg:button dlg:id="btnCancel" dlg:tab-index="2" dlg:left="5" dlg:top="45" dlg:width="40" dlg:height="15" dlg:help-text="&amp;32.Dlg1AskRange.btnCancel.HelpText" dlg:button-type="cancel"/>
+  <dlg:button dlg:id="btnOK" dlg:tab-index="3" dlg:left="50" dlg:top="45" dlg:width="40" dlg:height="15" dlg:help-text="&amp;34.Dlg1AskRange.btnOK.HelpText" dlg:default="true" dlg:button-type="ok"/>
+ </dlg:bulletinboard>
+</dlg:window>
