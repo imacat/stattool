@@ -24,7 +24,7 @@ Sub subRunPairedTTest As Object
 	Dim oSheet As Object, mRanges As Object
 	Dim sExisted As String, nResult As Integer
 	
-	DialogLibraries.loadLibrary "Stats"
+	DialogLibraries.loadLibrary "StatTool"
 	
 	' Asks the user for the data range
 	oRange = fnAskDataRange (ThisComponent)

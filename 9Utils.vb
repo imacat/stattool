@@ -93,7 +93,7 @@ Function fnSpecifyData (oRange As Object, sPrompt1 As String, sPrompt2 As String
 	Next nI
 	
 	' Runs the dialog
-	oDialog = CreateUnoDialog (DialogLibraries.Stats.Dlg2SpecData)
+	oDialog = CreateUnoDialog (DialogLibraries.StatTool.Dlg2SpecData)
 	oTextModel = oDialog.getControl ("txtPrompt1").getModel
 	oTextModel.setPropertyValue ("Label", sPrompt1)
 	oListModel1 = oDialog.getControl ("lstData1").getModel
@@ -143,7 +143,7 @@ Function fnAskDataRange (oDoc As Object) As Object
 	' Loop until we finds good data
 	Do While sPrompt <> ""
 		' Runs the dialog
-		oDialog = CreateUnoDialog (DialogLibraries.Stats.Dlg1AskRange)
+		oDialog = CreateUnoDialog (DialogLibraries.StatTool.Dlg1AskRange)
 		oTextModel = oDialog.getControl ("txtPrompt").getModel
 		oTextModel.setPropertyValue ("Label", sPrompt)
 		oEditModel = oDialog.getControl ("edtCellsData").getModel
