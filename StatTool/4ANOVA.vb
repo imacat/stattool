@@ -901,14 +901,14 @@ End Sub
 
 ' fnCollectANOVAData: Collects the data for the ANOVA (Analyze of Variances).
 Function fnCollectANOVAData (oReportSheet As Object, oLabelColumn As Object, oScoreColumn As Object) As Object
-	Dim nRow As Integer, nColumn As Integer, nI As Integer
-	Dim nNRow As Integer, sCellZMean As String, sCellsN As String
+	Dim nRow As Long, nColumn As Integer, nI As Integer
+	Dim nNRow As Long, sCellZMean As String, sCellsN As String
 	Dim oCell As Object, oCells As Object, oCursor As Object
 	Dim sCell As String, sLabel As String, sFormula As String
 	Dim nGroups As Integer, sLabels As String
 	Dim mLabels () As String, mCellLabel () As String
 	Dim mCellsData () As String, mCellMean () As String
-	Dim mN () As Integer, mCellsZData () As String
+	Dim mN () As Long, mCellsZData () As String
 	Dim mCellZMean () As String
 	
 	sLabels = " "
@@ -923,7 +923,7 @@ Function fnCollectANOVAData (oReportSheet As Object, oLabelColumn As Object, oSc
 	
 	ReDim mLabels (nGroups - 1) As String, mCellLabel (nGroups - 1) As String
 	ReDim mCellsData (nGroups - 1) As String, mCellMean (nGroups - 1) As String
-	ReDim mN (nGroups - 1) As Integer, mCellsZData (nGroups - 1) As String
+	ReDim mN (nGroups - 1) As Long, mCellsZData (nGroups - 1) As String
 	ReDim mCellZMean (nGroups - 1) As String
 	
 	sLabels = " "

@@ -57,69 +57,8 @@ Sub subRunPairedTTest As Object
 	subReportPairedTTest (ThisComponent, mRanges (0), mRanges (1))
 	oSheet = oSheets.getByName (sSheetName & "_ttest")
 	
-	' Adds an X-Y diagram.
-	subAddChart (oSheet, mRanges (0), mRanges (1))
-	
 	' Makes the report sheet active.
 	ThisComponent.getCurrentController.setActiveSheet (oSheet)
-End Sub
-
-' subAddChart: Adds a chart for the data
-Sub subAddChart (oSheet As Object, oDataXRange As Object, oDataYRange As Object)
-	Dim oCharts As Object, oChart As Object
-	Dim oChartDoc As Object, oDiagram As Object
-	Dim aPos As New com.sun.star.awt.Rectangle
-	Dim mAddrs (1) As New com.sun.star.table.CellRangeAddress
-	Dim sTitle As String
-	Dim oProvider As Object, oData As Object
-	Dim sRange As String, mData () As Object
-	
-	' Adds the chart
-	With aPos
-		.X = 0
-		.Y = 10000
-		.Width = 10000
-		.Height = 10000
-	End With
-	mAddrs (0) = oDataXRange.getRangeAddress
-	mAddrs (1) = oDataYRange.getRangeAddress
-	oCharts = oSheet.getCharts
-	oCharts.addNewByName (oSheet.getName, aPos, mAddrs, True, False)
-	oChart = oCharts.getByName (oSheet.getName)
-	oChartDoc = oChart.getEmbeddedObject
-	
-	BasicLibraries.loadLibrary "XrayTool"
-	oDiagram = oChartDoc.createInstance ( _
-		"com.sun.star.chart.XYDiagram")
-	oDiagram.setPropertyValue ("Lines", False)
-	oDiagram.setPropertyValue ("HasXAxisGrid", False)
-	oDiagram.setPropertyValue ("HasYAxisGrid", False)
-	sTitle = oDataXRange.getCellByPosition (0, 0).getString
-	oDiagram.getXAxisTitle.setPropertyValue ("String", sTitle)
-	sTitle = oDataYRange.getCellByPosition (0, 0).getString
-	oDiagram.getYAxisTitle.setPropertyValue ("String", sTitle)
-	oDiagram.getXAxis.setPropertyValue ("Min", 0)
-	oDiagram.getYAxis.setPropertyValue ("Min", 0)
-	oChartDoc.setDiagram (oDiagram)
-	
-	oProvider = oChartDoc.getDataProvider
-	mData = oChartDoc.getDataSequences
-	sRange = oDataXRange.getCellByPosition(0, 0).getPropertyValue ("AbsoluteName")
-	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
-	mData (0).setLabel (oData)
-	sRange = oDataXRange.getCellRangeByPosition(0, 1, 0, oDataXRange.getRows.getCount - 1).getPropertyValue ("AbsoluteName")
-	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
-	oData.Role = "values-x"
-	mData (0).setValues (oData)
-	sRange = oDataYRange.getCellByPosition(0, 0).getPropertyValue ("AbsoluteName")
-	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
-	mData (1).setLabel (oData)
-	sRange = oDataYRange.getCellRangeByPosition(0, 1, 0, oDataYRange.getRows.getCount - 1).getPropertyValue ("AbsoluteName")
-	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
-	oData.Role = "values-y"
-	mData (1).setValues (oData)
-	
-	oChartDoc.setPropertyValue ("HasLegend", False)
 End Sub
 
 ' subReportPairedTTest: Reports the paired T-test
@@ -128,7 +67,7 @@ Sub subReportPairedTTest (oDoc As Object, oDataXRange As Object, oDataYRange As 
 	Dim mNames () As String, nI As Integer, nSheetIndex As Integer
 	Dim oSheet As Object, oColumns As Object, nRow As Integer
 	Dim oCell As Object, oCells As Object, oCursor As Object
-	Dim nN As Integer, sFormula As String
+	Dim nN As Long, sFormula As String
 	Dim sNotes As String, nPos As Integer
 	Dim nFormatN As Integer, nFormatF As Integer, nFormatP As Integer
 	Dim aBorderSingle As New com.sun.star.table.BorderLine
@@ -642,4 +581,79 @@ Sub subReportPairedTTest (oDoc As Object, oDataXRange As Object, oDataYRange As 
 	oCells.setPropertyValue ("BottomBorder", aBorderDouble)
 	oCells = oSheet.getCellRangeByPosition (2, nRow - 1, 4, nRow - 1)
 	oCells.setPropertyValue ("BottomBorder", aBorderDouble)
+	
+	' Adds an X-Y diagram.
+	subAddChart (oSheet, nRow, oDataXRange, oDataYRange)
+End Sub
+
+' subAddChart: Adds a chart for the data
+Sub subAddChart (oSheet As Object, nRow As Integer, oDataXRange As Object, oDataYRange As Object)
+	Dim nI As Integer, nY As Long
+	Dim oCharts As Object, oChart As Object
+	Dim oChartDoc As Object, oDiagram As Object
+	Dim aPos As New com.sun.star.awt.Rectangle
+	Dim mAddrs (1) As New com.sun.star.table.CellRangeAddress
+	Dim sTitle As String
+	Dim oProvider As Object, oData As Object
+	Dim sRange As String, mData () As Object
+	
+	' Finds the Y position to place the chart.
+	nY = 0
+	For nI = 0 To nRow + 1
+		nY = nY + oSheet.getRows.getByIndex (nI).getPropertyValue ("Height")
+	Next nI
+	
+	' Adds the chart
+	With aPos
+		.X = 0
+		.Y = nY
+		.Width = 10000
+		.Height = 10000
+	End With
+	mAddrs (0) = oDataXRange.getRangeAddress
+	mAddrs (1) = oDataYRange.getRangeAddress
+	oCharts = oSheet.getCharts
+	oCharts.addNewByName (oSheet.getName, aPos, mAddrs, True, False)
+	oChart = oCharts.getByName (oSheet.getName)
+	oChartDoc = oChart.getEmbeddedObject
+	
+	BasicLibraries.loadLibrary "XrayTool"
+	oDiagram = oChartDoc.createInstance ( _
+		"com.sun.star.chart.XYDiagram")
+	oDiagram.setPropertyValue ("Lines", False)
+	oDiagram.setPropertyValue ("HasXAxisGrid", False)
+	oDiagram.setPropertyValue ("HasYAxisGrid", False)
+	sTitle = oDataXRange.getCellByPosition (0, 0).getString
+	oDiagram.getXAxisTitle.setPropertyValue ("String", sTitle)
+	sTitle = oDataYRange.getCellByPosition (0, 0).getString
+	oDiagram.getYAxisTitle.setPropertyValue ("String", sTitle)
+	oDiagram.getXAxis.setPropertyValue ("Min", 0)
+	oDiagram.getYAxis.setPropertyValue ("Min", 0)
+	With aPos
+		.X = 1500
+		.Y = 1000
+		.Width = 7500
+		.Height = 7500
+	End With
+	oDiagram.setDiagramPositionExcludingAxes (aPos)
+	oChartDoc.setDiagram (oDiagram)
+	
+	oProvider = oChartDoc.getDataProvider
+	mData = oChartDoc.getDataSequences
+	sRange = oDataXRange.getCellByPosition(0, 0).getPropertyValue ("AbsoluteName")
+	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
+	mData (0).setLabel (oData)
+	sRange = oDataXRange.getCellRangeByPosition(0, 1, 0, oDataXRange.getRows.getCount - 1).getPropertyValue ("AbsoluteName")
+	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
+	oData.Role = "values-x"
+	mData (0).setValues (oData)
+	sRange = oDataYRange.getCellByPosition(0, 0).getPropertyValue ("AbsoluteName")
+	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
+	mData (1).setLabel (oData)
+	sRange = oDataYRange.getCellRangeByPosition(0, 1, 0, oDataYRange.getRows.getCount - 1).getPropertyValue ("AbsoluteName")
+	oData = oProvider.createDataSequenceByRangeRepresentation (sRange)
+	oData.Role = "values-y"
+	mData (1).setValues (oData)
+	
+	oChartDoc.setPropertyValue ("HasLegend", False)
 End Sub

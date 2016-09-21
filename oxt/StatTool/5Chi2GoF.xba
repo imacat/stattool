@@ -70,7 +70,7 @@ Sub subReportChi2GoodnessOfFit (oDoc As Object, oColumnColumn As Object, oRowCol
 	Dim mNames () As String, nSheetIndex As Integer
 	Dim oSheet As Object, oColumns As Object, nRow As Integer, nStartRow As Integer
 	Dim oCell As Object, oCells As Object, oCursor As Object
-	Dim nN As Integer, sFormula As String
+	Dim sFormula As String
 	Dim sNotes As String, nPos As Integer
 	Dim nFormatN As Integer, nFormatF As Integer, nFormatP As Integer, nFormatPct As Integer
 	Dim aBorderSingle As New com.sun.star.table.BorderLine

@@ -86,7 +86,7 @@ Sub subReportIndependentTTest (oDoc As Object, oLabelColumn As Object, oScoreCol
 	Dim mNames () As String, nI As Integer, nSheetIndex As Integer
 	Dim oSheet As Object, oColumns As Object, nRow As Integer
 	Dim oCell As Object, oCells As Object, oCursor As Object, oTempDataRange As Object
-	Dim nN As Integer, sFormula As String, sSP2 As String
+	Dim nN As Long, sFormula As String, sSP2 As String
 	Dim sNotes As String, nPos As Integer
 	Dim nFormatN As Integer, nFormatF As Integer, nFormatP As Integer
 	Dim aBorderSingle As New com.sun.star.table.BorderLine
@@ -578,14 +578,14 @@ End Sub
 
 &apos; fnCollectIndependentTTestData: Collects the data for the independent T-test.
 Function fnCollectIndependentTTestData (oReportSheet As Object, oLabelColumn As Object, oScoreColumn As Object) As Object
-	Dim nRow As Integer, nNRow As Integer, sCellZMean As String, sCellsN As String
+	Dim nRow As Long, nNRow As Long, sCellZMean As String, sCellsN As String
 	Dim oCell As Object, oCells As Object, oCursor As Object
 	Dim sCell As String, sLabel As String, sFormula As String
 	Dim sCellXLabel As String, sCellsXData As String, sCellXMean As String
-	Dim sXLabel As String, nNX As Integer
+	Dim sXLabel As String, nNX As Long
 	Dim sCellsXZData As String, sCellXZMean As String
 	Dim sCellYLabel As String, sCellsYData As String, sCellYMean As String
-	Dim sYLabel As String, nNY As Integer
+	Dim sYLabel As String, nNY As Long
 	Dim sCellsYZData As String, sCellYZMean As String
 	
 	sCellXLabel = &quot;&quot;
