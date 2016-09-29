@@ -4,6 +4,6 @@
 <identifier value="tw.idv.imacat.office.stattool" />
 	<version value="0.1.0" />
 	<update-download>
-		<_src xlink:href="http://extensions.openoffice.org/e-files/ext/5649/5/CPuncBar.oxt" />
+		<src xlink:href="https://sourceforge.net/projects/aoo-extensions/files/18559/0/stattool.oxt" />
 	</update-download>
 </description>
