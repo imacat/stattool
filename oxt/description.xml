@@ -23,6 +23,9 @@
 		<name lang="zh-TW">Office 統計工具</name>
 		<name lang="zh-CN">Office 统计工具</name>
 	</display-name>
+	<icon>
+		<default xlink:href="icons/stattool-04.png" />
+	</icon>
 	<update-information>
 		<src xlink:href="https://dl.dropboxusercontent.com/s/jr8fjgipdtb1fwf/stattool.update.xml?dl=0" />
 	</update-information>
